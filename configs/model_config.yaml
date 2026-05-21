@@ -1,0 +1,14 @@
+model:
+  provider: openai
+  name: gpt-4.1-mini
+  temperature: 0.2
+  max_tokens: 1200
+  timeout_seconds: 60
+
+runtime:
+  api_key_env: OPENAI_API_KEY
+  base_url_env: OPENAI_BASE_URL
+  enable_streaming: false
+  retry:
+    max_attempts: 3
+    backoff_seconds: 2

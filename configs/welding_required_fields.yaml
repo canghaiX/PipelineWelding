@@ -1,0 +1,58 @@
+required_fields:
+  - key: welding_process
+    label: 焊接工艺
+    type: enum
+    options:
+      - SMAW
+      - GTAW
+      - GMAW
+      - FCAW
+      - SAW
+    source_hint: WPS/PQR、工艺卡或施工方案
+    examples:
+      - SMAW
+      - GTAW+SMAW
+
+  - key: welding_object
+    label: 焊接对象
+    type: enum
+    options:
+      - 管道
+      - 板材
+      - 管件
+      - 设备
+    source_hint: 图纸、工单或检验委托单
+    examples:
+      - 管道
+      - 设备
+
+  - key: joint_type
+    label: 接头形式
+    type: enum
+    options:
+      - 对接
+      - 角接
+      - 搭接
+      - 支管连接
+    source_hint: 焊接接头详图、坡口图或施工图
+    examples:
+      - 对接
+      - 支管连接
+
+  - key: base_material
+    label: 母材牌号/规格
+    type: text
+    source_hint: 材料数据库、标准材料分组、材质证明书或设计文件
+    examples:
+      - 20#
+      - Q345R
+      - ASTM A106 Gr.B / P-No.1
+
+  - key: base_thickness_or_diameter
+    label: 母材厚度/管径
+    type: text
+    source_hint: 图纸、材料清单、标准适用范围
+    examples:
+      - 壁厚 8 mm，DN100
+      - 板厚 12 mm
+      - OD 219.1 x 8.2 mm

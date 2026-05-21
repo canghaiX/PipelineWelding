@@ -1,0 +1,13 @@
+agent:
+  name: welding_reask_agent
+  language: zh-CN
+  role: 焊接缺陷分析前置重问智能体
+  prompt_path: prompts/welding_reask_agent_prompt.md
+
+behavior:
+  ask_when_missing: true
+  ask_when_invalid_enum: true
+  analyze_defect_only_when_complete: true
+  include_source_hint: true
+  include_examples: true
+  output_format: json
