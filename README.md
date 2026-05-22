@@ -21,6 +21,7 @@ PipelineWelding/
 │           └── loader.py              # YAML 配置加载工具
 ├── demo_reask.py                      # 本地演示脚本
 ├── requirements.txt                   # 运行依赖
+├── requirements-dev.txt               # 开发和测试依赖
 ├── pyproject.toml                     # Python 工程打包配置
 ├── .env.example                       # 环境变量模板
 └── README.md
@@ -48,6 +49,13 @@ PipelineWelding/
 pip install -r .\requirements.txt
 pip install -e .
 python .\demo_reask.py
+```
+
+开发环境可以安装：
+
+```powershell
+pip install -r .\requirements-dev.txt
+pip install -e ".[dev]"
 ```
 
 启动后可以像对话一样输入：
@@ -120,3 +128,4 @@ print(state["assistant_message"])
 | `configs/welding_required_fields.yaml` | 焊接业务字段配置，包括焊接工艺、焊接对象、接头形式、母材牌号/规格、母材厚度/管径 |
 | `.env.example` | 环境变量模板，不提交真实密钥 |
 | `requirements.txt` | 项目运行依赖 |
+| `requirements-dev.txt` | 开发和测试依赖 |
