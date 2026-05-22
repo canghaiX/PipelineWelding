@@ -4,7 +4,7 @@
 ## 工程目录
 
 ```text
-PipelineWelding/
+PipelineWelding/    
 ├── configs/
 │   ├── agent_config.yaml              # 智能体行为配置
 │   ├── model_config.yaml              # 模型供应商、模型名、温度、重试等配置
