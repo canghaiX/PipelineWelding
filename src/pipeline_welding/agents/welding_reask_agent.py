@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import re
 from typing import Any
 
 
@@ -105,6 +106,36 @@ class WeldingReaskAgent:
     def next_prompt(self, payload: dict[str, Any]) -> str:
         return self.inspect(payload)["message"]
 
+    def extract_fields_from_text(self, text: str) -> dict[str, str]:
+        extracted: dict[str, str] = {}
+        source = text.strip()
+        if not source:
+            return extracted
+
+        process_values = self._extract_processes(source)
+        if process_values:
+            extracted["welding_process"] = "+".join(process_values)
+
+        object_value = self._first_keyword(source, ("管道", "板材", "管件", "设备"))
+        if object_value:
+            extracted["welding_object"] = object_value
+
+        joint_value = self._first_keyword(source, ("支管连接", "对接", "角接", "搭接"))
+        if joint_value:
+            extracted["joint_type"] = joint_value
+
+        material_value = self._extract_value_after_label(
+            source, ("母材牌号/规格", "母材牌号", "母材规格", "母材", "材质", "材料")
+        )
+        if material_value:
+            extracted["base_material"] = material_value
+
+        size_value = self._extract_size(source)
+        if size_value:
+            extracted["base_thickness_or_diameter"] = size_value
+
+        return extracted
+
     @staticmethod
     def _is_missing(value: Any) -> bool:
         if value is None:
@@ -147,6 +178,57 @@ class WeldingReaskAgent:
         for separator in ("+", "＋", "/", "、", ",", "，"):
             text = text.replace(separator, "|")
         return [item.strip() for item in text.split("|") if item.strip()]
+
+    def _extract_processes(self, text: str) -> list[str]:
+        normalized_text = text.upper()
+        found: list[tuple[int, str]] = []
+        for process in self._field_options("welding_process"):
+            position = normalized_text.find(process)
+            if position >= 0:
+                found.append((position, process))
+        return [process for _, process in sorted(found)]
+
+    @staticmethod
+    def _first_keyword(text: str, keywords: tuple[str, ...]) -> str | None:
+        for keyword in keywords:
+            if keyword in text:
+                return keyword
+        return None
+
+    @staticmethod
+    def _extract_value_after_label(text: str, labels: tuple[str, ...]) -> str | None:
+        label_pattern = "|".join(re.escape(label) for label in labels)
+        pattern = rf"(?:{label_pattern})\s*[:：为是]?\s*([^,，;；。\n]+)"
+        match = re.search(pattern, text)
+        if not match:
+            return None
+        value = match.group(1).strip()
+        return value or None
+
+    @staticmethod
+    def _extract_size(text: str) -> str | None:
+        value = WeldingReaskAgent._extract_value_after_label(
+            text, ("母材厚度/管径", "厚度/管径", "母材厚度", "管径", "壁厚", "板厚", "规格")
+        )
+        if value:
+            return value
+
+        patterns = (
+            r"(?:DN|dn)\s*\d+(?:\.\d+)?",
+            r"(?:OD|od)\s*\d+(?:\.\d+)?(?:\s*[xX*]\s*\d+(?:\.\d+)?)?",
+            r"(?:壁厚|板厚|厚度)\s*\d+(?:\.\d+)?\s*(?:mm|毫米)?",
+            r"\d+(?:\.\d+)?\s*(?:mm|毫米)",
+        )
+        matches = []
+        for pattern in patterns:
+            matches.extend(match.group(0).strip() for match in re.finditer(pattern, text))
+        return "，".join(dict.fromkeys(matches)) if matches else None
+
+    def _field_options(self, key: str) -> tuple[str, ...]:
+        for field in self.required_fields:
+            if field.key == key:
+                return field.options
+        return ()
 
     @staticmethod
     def _build_message(questions: list[str]) -> str:
