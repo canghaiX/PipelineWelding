@@ -7,12 +7,15 @@ agent:
 reference:
   wps_docx_path: data/MHPWPS-062.docx
   max_reference_chars: 4000
+  max_reference_query_chars: 1000
 
 mcp_search:
-  enabled: false
+  enabled: true
   transport: stdio
   tool_name: search
-  command: ""
-  args: []
+  command: python
+  args:
+    - -m
+    - pipeline_welding.mcp.external_search_server
   url: ""
   max_results: 5

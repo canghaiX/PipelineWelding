@@ -1,5 +1,4 @@
 from pathlib import Path
-import json
 import sys
 
 
@@ -23,8 +22,7 @@ def main() -> None:
 
     config = load_yaml_config(ROOT_DIR / "configs" / "welding_standard_agent_config.yaml")
     agent = build_welding_standard_agent_from_config(config)
-    result = agent.build_standard(welding_json)
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    agent.build_standard(welding_json)
 
 
 if __name__ == "__main__":

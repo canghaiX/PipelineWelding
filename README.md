@@ -123,7 +123,7 @@ print(state["assistant_message"])
 
 ## 管道焊接标准制定智能体
 
-标准制定智能体只接收 `welding_reask_agent` 已汇总出的 JSON 信息，然后读取本地 WPS 参考文件 [data/MHPWPS-062.docx](data/MHPWPS-062.docx)，并可通过 MCP 协议连接搜索工具查询相关标准资料，最终返回 JSON 格式的管道焊接标准草案。
+标准制定智能体只接收 `welding_reask_agent` 已汇总出的 JSON 信息，然后读取本地 WPS 参考文件 [data/MHPWPS-062.docx](data/MHPWPS-062.docx)，再通过 MCP 协议连接外部搜索引擎查询相关标准资料，最终打印并返回 JSON 格式的管道焊接标准草案。
 
 本地演示：
 
@@ -146,7 +146,41 @@ result = agent.build_standard({
 })
 ```
 
-如需启用 MCP 搜索，需要在 [configs/welding_standard_agent_config.yaml](configs/welding_standard_agent_config.yaml) 中配置 MCP server 的 `transport`、`tool_name`、`command/args` 或 `url`。
+如需启用 MCP 外部搜索，需要在 [configs/welding_standard_agent_config.yaml](configs/welding_standard_agent_config.yaml) 中配置 MCP server 的 `transport`、`tool_name`、`command/args` 或 `url`，并在 `.env` 中配置外部搜索引擎密钥。
+
+本地 `stdio` 模式已经配置为使用项目内置外部搜索 MCP Server：
+
+```yaml
+mcp_search:
+  enabled: true
+  transport: stdio
+  tool_name: search
+  command: python
+  args:
+    - -m
+    - pipeline_welding.mcp.external_search_server
+```
+
+运行 `python .\demo_standard_agent.py` 时，MCP Client 会自动启动这个本地 server 子进程。该 server 会调用外部搜索引擎。默认 provider 为 Tavily：
+
+```env
+EXTERNAL_SEARCH_PROVIDER=tavily
+TAVILY_API_KEY=replace-with-your-tavily-api-key
+```
+
+也可以切换到 Bing：
+
+```env
+EXTERNAL_SEARCH_PROVIDER=bing
+BING_SEARCH_API_KEY=replace-with-your-bing-search-api-key
+BING_SEARCH_ENDPOINT=https://api.bing.microsoft.com/v7.0/search
+```
+
+可以手动测试启动：
+
+```powershell
+python -m pipeline_welding.mcp.external_search_server --transport stdio
+```
 
 ### 配置文件说明
 

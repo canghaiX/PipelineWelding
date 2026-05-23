@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 from typing import Any, Literal
 
 
@@ -100,7 +101,17 @@ class McpSearchClient:
         for content in getattr(result, "content", []) or []:
             text = getattr(content, "text", "")
             if text:
-                parsed_results.append(SearchResult(title=text[:80], snippet=text, raw={"text": text}))
+                try:
+                    data = json.loads(text)
+                except json.JSONDecodeError:
+                    parsed_results.append(SearchResult(title=text[:80], snippet=text, raw={"text": text}))
+                    continue
+
+                items = data.get("results") if isinstance(data, dict) else None
+                if isinstance(items, list):
+                    parsed_results.extend(McpSearchClient._result_from_dict(item) for item in items)
+                else:
+                    parsed_results.append(McpSearchClient._result_from_dict(data))
         return parsed_results
 
     @staticmethod

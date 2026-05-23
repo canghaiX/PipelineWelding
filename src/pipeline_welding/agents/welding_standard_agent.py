@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+import json
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ STANDARD_FIELDS = (
 class WeldingStandardAgentConfig:
     reference_docx_path: Path = Path("data/MHPWPS-062.docx")
     max_reference_chars: int = 4000
+    max_reference_query_chars: int = 1000
 
 
 class WeldingStandardAgent:
@@ -36,13 +38,15 @@ class WeldingStandardAgent:
         self.config = config or WeldingStandardAgentConfig()
 
     def build_standard(self, welding_json: dict[str, Any]) -> dict[str, Any]:
-        return asyncio.run(self.build_standard_async(welding_json))
+        result = asyncio.run(self.build_standard_async(welding_json))
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return result
 
     async def build_standard_async(self, welding_json: dict[str, Any]) -> dict[str, Any]:
         normalized_input = self._normalize_welding_json(welding_json)
         validation = self._validate_input(normalized_input)
         reference_text = self._load_reference_text()
-        search_queries = self._build_search_queries(normalized_input)
+        search_queries = self._build_search_queries(normalized_input, reference_text)
         search_results = await self._run_search(search_queries)
 
         return {
@@ -66,6 +70,7 @@ class WeldingStandardAgent:
                 normalized_input,
                 reference_text,
                 search_results,
+                self.config.reference_docx_path,
             ),
         }
 
@@ -85,20 +90,24 @@ class WeldingStandardAgent:
         except FileNotFoundError:
             return ""
 
-    @staticmethod
-    def _build_search_queries(fields: dict[str, str]) -> list[str]:
+    def _build_search_queries(self, fields: dict[str, str], reference_text: str) -> list[str]:
         process = fields.get("welding_process", "")
         material = fields.get("base_material", "")
         size = fields.get("base_thickness_or_diameter", "")
         joint_type = fields.get("joint_type", "")
         welding_object = fields.get("welding_object", "")
+        wps_terms = self._compact_reference_for_query(reference_text)
 
         base_terms = " ".join(term for term in (process, material, size, joint_type, welding_object) if term)
         return [
-            f"{base_terms} 管道焊接 标准 WPS",
-            f"{process} {material} {joint_type} 焊接工艺评定 标准",
-            f"{material} {size} 管道 焊接 参数 预热 层间温度",
+            f"{base_terms} 管道焊接 标准 WPS {wps_terms}",
+            f"{process} {material} {joint_type} 焊接工艺评定 标准 {wps_terms}",
+            f"{material} {size} 管道 焊接 参数 预热 层间温度 {wps_terms}",
         ]
+
+    def _compact_reference_for_query(self, reference_text: str) -> str:
+        compacted = " ".join(reference_text.split())
+        return compacted[: self.config.max_reference_query_chars]
 
     async def _run_search(self, queries: list[str]) -> dict[str, list[SearchResult]]:
         if self.search_client is None:
@@ -114,6 +123,7 @@ class WeldingStandardAgent:
         fields: dict[str, str],
         reference_text: str,
         search_results: dict[str, list[SearchResult]],
+        reference_docx_path: Path,
     ) -> dict[str, Any]:
         evidence_titles = [
             result.title
@@ -131,7 +141,7 @@ class WeldingStandardAgent:
             },
             "welding_process": fields.get("welding_process", ""),
             "reference_basis": {
-                "local_wps": "data/MHPWPS-062.docx" if reference_text else "",
+                "local_wps": str(reference_docx_path) if reference_text else "",
                 "mcp_search_evidence": evidence_titles,
             },
             "required_controls": [
@@ -165,6 +175,7 @@ def build_welding_standard_agent_from_config(config: dict[str, Any]) -> WeldingS
     agent_config = WeldingStandardAgentConfig(
         reference_docx_path=Path(reference_config.get("wps_docx_path", "data/MHPWPS-062.docx")),
         max_reference_chars=int(reference_config.get("max_reference_chars", 4000)),
+        max_reference_query_chars=int(reference_config.get("max_reference_query_chars", 1000)),
     )
     search_client = None
     if mcp_config.get("enabled"):
