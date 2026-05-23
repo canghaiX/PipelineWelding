@@ -3,8 +3,12 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 import json
+import os
 from pathlib import Path
+import re
 from typing import Any
+
+from dotenv import load_dotenv
 
 from pipeline_welding.documents import read_docx_text
 from pipeline_welding.mcp import McpSearchClient, McpSearchConfig, SearchResult
@@ -169,6 +173,7 @@ def build_welding_standard_agent(
 
 
 def build_welding_standard_agent_from_config(config: dict[str, Any]) -> WeldingStandardAgent:
+    load_dotenv()
     reference_config = config.get("reference", {})
     mcp_config = config.get("mcp_search", {})
 
@@ -181,13 +186,22 @@ def build_welding_standard_agent_from_config(config: dict[str, Any]) -> WeldingS
     if mcp_config.get("enabled"):
         search_client = McpSearchClient(
             McpSearchConfig(
-                transport=mcp_config.get("transport", "stdio"),
-                tool_name=mcp_config.get("tool_name", "search"),
-                command=mcp_config.get("command", ""),
-                args=tuple(mcp_config.get("args", [])),
-                url=mcp_config.get("url", ""),
+                transport=_resolve_env(mcp_config.get("transport", "stdio")),
+                tool_name=_resolve_env(mcp_config.get("tool_name", "search")),
+                command=_resolve_env(mcp_config.get("command", "")),
+                args=tuple(_resolve_env(str(item)) for item in mcp_config.get("args", [])),
+                url=_resolve_env(mcp_config.get("url", "")),
                 max_results=int(mcp_config.get("max_results", 5)),
             )
         )
 
     return WeldingStandardAgent(search_client=search_client, config=agent_config)
+
+
+def _resolve_env(value: str) -> str:
+    pattern = re.compile(r"\$\{([A-Z0-9_]+)\}")
+
+    def replace(match: re.Match[str]) -> str:
+        return os.getenv(match.group(1), "")
+
+    return pattern.sub(replace, value)

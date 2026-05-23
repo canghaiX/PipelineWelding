@@ -11,11 +11,9 @@ reference:
 
 mcp_search:
   enabled: true
-  transport: stdio
-  tool_name: search
-  command: python
-  args:
-    - -m
-    - pipeline_welding.mcp.external_search_server
-  url: ""
+  transport: streamable_http
+  tool_name: tavily-search
+  command: ""
+  args: []
+  url: https://mcp.tavily.com/mcp/?tavilyApiKey=${TAVILY_API_KEY}
   max_results: 5

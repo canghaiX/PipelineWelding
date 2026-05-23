@@ -146,32 +146,26 @@ result = agent.build_standard({
 })
 ```
 
-如需启用 MCP 外部搜索，需要在 [configs/welding_standard_agent_config.yaml](configs/welding_standard_agent_config.yaml) 中配置 MCP server 的 `transport`、`tool_name`、`command/args` 或 `url`，并在 `.env` 中配置外部搜索引擎密钥。
+如需启用 MCP 外部搜索，需要在 [configs/welding_standard_agent_config.yaml](configs/welding_standard_agent_config.yaml) 中配置 MCP server 的 `transport`、`tool_name` 和 `url`，并在 `.env` 中配置 Tavily API Key。
 
-本地 `stdio` 模式已经配置为使用项目内置外部搜索 MCP Server：
+当前项目默认使用 Tavily 官方远程 MCP Server：
 
 ```yaml
 mcp_search:
   enabled: true
-  transport: stdio
-  tool_name: search
-  command: python
-  args:
-    - -m
-    - pipeline_welding.mcp.external_search_server
+  transport: streamable_http
+  tool_name: tavily-search
+  command: ""
+  args: []
+  url: https://mcp.tavily.com/mcp/?tavilyApiKey=${TAVILY_API_KEY}
+  max_results: 5
 ```
 
-运行 `python .\demo_standard_agent.py` 时，MCP Client 会自动启动这个本地 server 子进程。该 server 会通过 Tavily 搜索外部资料：
+运行 `python .\demo_standard_agent.py` 时，MCP Client 会直接连接 Tavily 在线 MCP Server。`.env` 中只需要填写：
 
 ```env
 TAVILY_API_KEY=replace-with-your-tavily-api-key
 TAVILY_SEARCH_DEPTH=basic
-```
-
-可以手动测试启动：
-
-```powershell
-python -m pipeline_welding.mcp.external_search_server --transport stdio
 ```
 
 ### 配置文件说明
