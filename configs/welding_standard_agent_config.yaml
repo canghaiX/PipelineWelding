@@ -1,0 +1,18 @@
+agent:
+  name: welding_standard_agent
+  role: 管道焊接标准制定智能体
+  input_source: welding_reask_agent_json
+  output_format: json
+
+reference:
+  wps_docx_path: data/MHPWPS-062.docx
+  max_reference_chars: 4000
+
+mcp_search:
+  enabled: false
+  transport: stdio
+  tool_name: search
+  command: ""
+  args: []
+  url: ""
+  max_results: 5

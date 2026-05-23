@@ -8,20 +8,29 @@ PipelineWelding/
 ├── configs/
 │   ├── agent_config.yaml              # 智能体行为配置
 │   ├── model_config.yaml              # 模型供应商、模型名、温度、重试等配置
-│   └── welding_required_fields.yaml   # 焊接缺陷重问必填字段 schema
+│   ├── welding_required_fields.yaml   # 焊接缺陷重问必填字段 schema
+│   └── welding_standard_agent_config.yaml # 标准制定智能体配置
 ├── prompts/
-│   └── welding_reask_agent_prompt.md  # 大模型系统提示词
+│   ├── welding_reask_agent_prompt.md  # 缺陷重问智能体系统提示词
+│   └── welding_standard_agent_prompt.md # 标准制定智能体系统提示词
 ├── src/
 │   └── pipeline_welding/
 │       ├── agents/
-│       │   └── welding_reask_agent.py # 缺陷重问智能体核心逻辑
+│       │   ├── welding_reask_agent.py # 缺陷重问智能体核心逻辑
+│       │   └── welding_standard_agent.py # 标准制定智能体核心逻辑
 │       ├── graphs/
 │       │   └── welding_reask_graph.py # LangGraph State 对话流程
+│       ├── documents/
+│       │   └── docx_reader.py         # DOCX 参考文档读取
+│       ├── mcp/
+│       │   └── search_client.py       # MCP 搜索客户端适配器
 │       └── config/
 │           └── loader.py              # YAML 配置加载工具
+├── data/
+│   └── MHPWPS-062.docx                # 本地 WPS 参考文件
 ├── demo_reask.py                      # 本地演示脚本
+├── demo_standard_agent.py             # 标准制定智能体演示脚本
 ├── requirements.txt                   # 运行依赖
-├── requirements-dev.txt               # 开发和测试依赖
 ├── pyproject.toml                     # Python 工程打包配置
 ├── .env.example                       # 环境变量模板
 └── README.md
@@ -49,13 +58,6 @@ PipelineWelding/
 pip install -r .\requirements.txt
 pip install -e .
 python .\demo_reask.py
-```
-
-开发环境可以安装：
-
-```powershell
-pip install -r .\requirements-dev.txt
-pip install -e ".[dev]"
 ```
 
 启动后可以像对话一样输入：
@@ -119,6 +121,33 @@ print(state["assistant_message"])
 
 如果要接入大模型工作流，可以直接使用 [prompts/welding_reask_agent_prompt.md](prompts/welding_reask_agent_prompt.md) 作为前置重问智能体的系统提示词。
 
+## 管道焊接标准制定智能体
+
+标准制定智能体只接收 `welding_reask_agent` 已汇总出的 JSON 信息，然后读取本地 WPS 参考文件 [data/MHPWPS-062.docx](data/MHPWPS-062.docx)，并可通过 MCP 协议连接搜索工具查询相关标准资料，最终返回 JSON 格式的管道焊接标准草案。
+
+本地演示：
+
+```powershell
+python .\demo_standard_agent.py
+```
+
+代码调用：
+
+```python
+from pipeline_welding.agents import build_welding_standard_agent
+
+agent = build_welding_standard_agent()
+result = agent.build_standard({
+    "welding_process": "GTAW+SMAW",
+    "welding_object": "管道",
+    "joint_type": "对接",
+    "base_material": "ASTM A106 Gr.B / P-No.1",
+    "base_thickness_or_diameter": "OD 219.1 x 8.2 mm",
+})
+```
+
+如需启用 MCP 搜索，需要在 [configs/welding_standard_agent_config.yaml](configs/welding_standard_agent_config.yaml) 中配置 MCP server 的 `transport`、`tool_name`、`command/args` 或 `url`。
+
 ### 配置文件说明
 
 | 文件 | 作用 |
@@ -126,6 +155,6 @@ print(state["assistant_message"])
 | `configs/model_config.yaml` | 单列模型配置，包括模型供应商、模型名、温度、最大 token、超时、重试和 API 环境变量名 |
 | `configs/agent_config.yaml` | 智能体行为配置，包括 Prompt 路径、是否缺失重问、是否非法枚举重问、输出格式 |
 | `configs/welding_required_fields.yaml` | 焊接业务字段配置，包括焊接工艺、焊接对象、接头形式、母材牌号/规格、母材厚度/管径 |
+| `configs/welding_standard_agent_config.yaml` | 标准制定智能体配置，包括 WPS 文档路径和 MCP 搜索连接参数 |
 | `.env.example` | 环境变量模板，不提交真实密钥 |
-| `requirements.txt` | 项目运行依赖 |
-| `requirements-dev.txt` | 开发和测试依赖 |
+| `requirements.txt` | 项目全部依赖，包括运行、测试和代码检查依赖 |
