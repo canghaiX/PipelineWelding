@@ -161,19 +161,11 @@ mcp_search:
     - pipeline_welding.mcp.external_search_server
 ```
 
-运行 `python .\demo_standard_agent.py` 时，MCP Client 会自动启动这个本地 server 子进程。该 server 会调用外部搜索引擎。默认 provider 为 Tavily：
+运行 `python .\demo_standard_agent.py` 时，MCP Client 会自动启动这个本地 server 子进程。该 server 会通过 Tavily 搜索外部资料：
 
 ```env
-EXTERNAL_SEARCH_PROVIDER=tavily
 TAVILY_API_KEY=replace-with-your-tavily-api-key
-```
-
-也可以切换到 Bing：
-
-```env
-EXTERNAL_SEARCH_PROVIDER=bing
-BING_SEARCH_API_KEY=replace-with-your-bing-search-api-key
-BING_SEARCH_ENDPOINT=https://api.bing.microsoft.com/v7.0/search
+TAVILY_SEARCH_DEPTH=basic
 ```
 
 可以手动测试启动：
