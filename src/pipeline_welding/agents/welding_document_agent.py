@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 from docx import Document
-from docx.text.paragraph import Paragraph
 
 
 @dataclass(frozen=True)
@@ -60,29 +59,29 @@ class WeldingDocumentAgent:
         document: Document,
         document_fields: dict[str, str],
     ) -> None:
-        replacements: dict[str, str] = self._paragraph_replacements(document_fields)
-
-        for paragraph in document.paragraphs:
-            self._replace_paragraph_by_keyword(paragraph, replacements)
-
-        for table in document.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    for paragraph in cell.paragraphs:
-                        self._replace_paragraph_by_keyword(paragraph, replacements)
-
-    def _paragraph_replacements(self, document_fields: dict[str, str]) -> dict[str, str]:
-        material = self._value(document_fields, "base_material")
-        size = self._value(document_fields, "base_thickness_or_diameter")
-        return {
-            "焊接方法": self._line_value("焊接方法", self._value(document_fields, "welding_process")),
-            "坡口形式": self._line_value("坡口形式:", self._value(document_fields, "joint_type")),
-            "类别号": f"母材：标准号/材料代号 {material}",
-            "对接焊缝焊件母材厚度范围": self._line_value("对接焊缝焊件母材厚度范围", size),
-            "管子直径、壁厚范围": self._line_value("管子直径、壁厚范围：对接焊缝", size),
-            "最小预热温度": self._line_value("最小预热温度（℃）", self._value(document_fields, "preheat_temperature")),
-            "最大道间温度": self._line_value("最大道间温度（℃）", self._value(document_fields, "interpass_temperature")),
-        }
+        self._fill_first_label(document.paragraphs, "预焊接工艺规程编号", document_fields, "wps_no")
+        self._fill_first_label(document.paragraphs, "所支持的焊接工艺评定编号", document_fields, "pqr_no")
+        self._fill_first_label(document.paragraphs, "焊接方法", document_fields, "welding_process")
+        self._fill_first_label(document.paragraphs, "机械化程度", document_fields, "mechanization")
+        self._fill_first_label(document.paragraphs, "类别号", document_fields, "base_material_category")
+        self._fill_label_after(document.paragraphs, "组别号", self._value(document_fields, "base_material_group"))
+        self._fill_label_after(document.paragraphs, "相焊或标准号", self._value(document_fields, "base_material_standard"))
+        self._fill_label_after(document.paragraphs, "材料代号", self._value(document_fields, "base_material_grade"))
+        self._fill_first_label(document.paragraphs, "对接焊缝焊件母材厚度范围", document_fields, "base_thickness_range_butt")
+        self._fill_first_label(document.paragraphs, "角焊缝焊件母材厚度范围", document_fields, "base_thickness_range_fillet")
+        self._fill_label_after(
+            document.paragraphs,
+            "管子直径、壁厚范围：对接焊缝",
+            self._value(document_fields, "pipe_diameter_thickness_butt"),
+        )
+        self._fill_label_after_with_anchor(
+            document.paragraphs,
+            "管子直径、壁厚范围",
+            "角焊缝",
+            self._value(document_fields, "pipe_diameter_thickness_fillet"),
+        )
+        self._fill_electrical_paragraphs(document.paragraphs, document_fields)
+        self._fill_technical_paragraphs(document.paragraphs, document_fields)
 
     def _fill_known_tables(
         self,
@@ -96,27 +95,25 @@ class WeldingDocumentAgent:
                 self._fill_filler_metal_table(table, document_fields)
             if index == 3:
                 self._fill_process_condition_table(table, document_fields)
-            self._fill_labeled_table(table, document_fields)
             if self._is_welding_parameter_table(table):
                 self._fill_welding_parameter_table(table, document_fields)
 
     def _fill_joint_table(self, table: Any, document_fields: dict[str, str]) -> None:
         if not table.rows or not table.rows[0].cells:
             return
-        table.rows[0].cells[0].text = (
-            "焊接接头："
-            f"坡口形式:{self._value(document_fields, 'joint_type')}"
-            "衬垫(材料及规格)/"
-            "其他/"
-        )
+        paragraphs = table.rows[0].cells[0].paragraphs
+        self._fill_label_after(paragraphs, "坡口形式:", self._value(document_fields, "groove_type"))
+        self._fill_label_after(paragraphs, "衬垫(材料及规格", self._value(document_fields, "backing"))
+        self._fill_label_after(paragraphs, "其他", self._value(document_fields, "joint_other"))
 
     def _fill_filler_metal_table(self, table: Any, document_fields: dict[str, str]) -> None:
         row_values = {
             "焊材标准": self._value(document_fields, "filler_standard"),
             "填充金属尺寸": self._value(document_fields, "filler_diameter"),
-            "焊材型号": self._value(document_fields, "filler_metal"),
-            "焊材牌号": self._value(document_fields, "filler_metal"),
-            "填充金属类别": self._value(document_fields, "filler_category"),
+            "焊材型号": self._value(document_fields, "filler_model"),
+            "焊材牌号": self._value(document_fields, "filler_trade_name"),
+            "填充金属类别": self._value(document_fields, "filler_class"),
+            "其他": self._value(document_fields, "filler_category"),
         }
         for row in table.rows:
             if len(row.cells) < 2:
@@ -135,35 +132,16 @@ class WeldingDocumentAgent:
         cells = table.rows[0].cells
         if len(cells) < 3:
             return
-        cells[1].text = (
-            "预热："
-            f"最小预热温度（℃）{self._value(document_fields, 'preheat_temperature')}"
-            f"最大道间温度（℃）{self._value(document_fields, 'interpass_temperature')}"
-            "保持预热时间/"
-            "加热方式/"
-        )
-        cells[2].text = (
-            "气体："
-            "气体种类 混合比 流量(L/min)"
-            f"保护气 {self._value(document_fields, 'shielding_gas')} / {self._value(document_fields, 'gas_flow')}"
-            "尾部保护气 / / /"
-            "背面保护气 / / /"
-        )
-
-    def _fill_labeled_table(self, table: Any, document_fields: dict[str, str]) -> None:
-        label_to_value = {
-            "填充金属尺寸": document_fields.get("filler_diameter"),
-            "焊材型号": document_fields.get("filler_metal"),
-            "焊材牌号": document_fields.get("filler_metal"),
-        }
-        for row in table.rows:
-            if len(row.cells) < 2:
-                continue
-            label = row.cells[0].text.strip().replace("：", "")
-            for expected_label, value in label_to_value.items():
-                if value and expected_label in label:
-                    row.cells[1].text = value
-                    break
+        self._fill_label_after(cells[0].paragraphs, "对接焊缝的位置", self._value(document_fields, "butt_weld_position"))
+        self._fill_label_after(cells[0].paragraphs, "立焊的焊接方向：（向上、向下）", self._value(document_fields, "vertical_direction"))
+        self._fill_label_after(cells[0].paragraphs, "角焊缝位置", "/")
+        self._fill_label_after(cells[0].paragraphs, "保温温度（℃）", self._value(document_fields, "pwht_temperature"))
+        self._fill_label_after(cells[0].paragraphs, "保温时间范围（h）", self._value(document_fields, "pwht_time"))
+        self._fill_label_after(cells[1].paragraphs, "最小预热温度（℃）", self._value(document_fields, "preheat_temperature"))
+        self._fill_label_after(cells[1].paragraphs, "最大道间温度（℃）", self._value(document_fields, "interpass_temperature"))
+        self._fill_label_after(cells[1].paragraphs, "保持预热时间", "/")
+        self._fill_label_after(cells[1].paragraphs, "加热方式", "/")
+        self._fill_gas_cell(cells[2], document_fields)
 
     @staticmethod
     def _is_welding_parameter_table(table: Any) -> bool:
@@ -175,35 +153,42 @@ class WeldingDocumentAgent:
         table: Any,
         document_fields: dict[str, str],
     ) -> None:
-        welding_process = self._value(document_fields, "welding_process")
-        filler_metal = self._value(document_fields, "filler_metal")
-        filler_diameter = self._value(document_fields, "filler_diameter")
-        polarity = self._value(document_fields, "polarity")
-        current = self._value(document_fields, "current")
-        voltage = self._value(document_fields, "voltage")
-        speed = self._value(document_fields, "welding_speed")
-        heat_input = self._value(document_fields, "heat_input")
-
+        filled = 0
         for row in table.rows:
             cells = row.cells
-            if not cells or not cells[0].text.strip().isdigit():
+            if len(cells) < 9 or self._is_parameter_header_row(row):
                 continue
-            self._set_cell_text(cells, 1, welding_process)
-            self._set_cell_text(cells, 2, filler_metal)
-            self._set_cell_text(cells, 3, filler_diameter)
-            self._set_cell_text(cells, 4, polarity)
-            self._set_cell_text(cells, 5, current)
-            self._set_cell_text(cells, 6, voltage)
-            self._set_cell_text(cells, 7, speed)
-            self._set_cell_text(cells, 8, heat_input)
+            filled += 1
+            if filled > 2:
+                break
+            prefix = f"bead_{filled}_"
+            self._set_cell_text(cells, 0, str(filled))
+            self._set_cell_text(cells, 1, self._value(document_fields, prefix + "process"))
+            self._set_cell_text(cells, 2, self._value(document_fields, prefix + "filler_metal"))
+            self._set_cell_text(cells, 3, self._value(document_fields, prefix + "diameter"))
+            self._set_cell_text(cells, 4, self._value(document_fields, prefix + "polarity"))
+            self._set_cell_text(cells, 5, self._value(document_fields, prefix + "current"))
+            self._set_cell_text(cells, 6, self._value(document_fields, prefix + "voltage"))
+            self._set_cell_text(cells, 7, self._value(document_fields, prefix + "speed"))
+            self._set_cell_text(cells, 8, self._value(document_fields, prefix + "heat_input"))
 
     @staticmethod
-    def _line_value(label: str, value: str | None) -> str:
-        return f"{label}{WeldingDocumentAgent._clean_value(value)}"
-
-    @staticmethod
-    def _base_material_line(value: str | None) -> str:
-        return f"母材：标准号/材料代号 {WeldingDocumentAgent._clean_value(value)}"
+    def _is_parameter_header_row(row: Any) -> bool:
+        text = "\n".join(cell.text for cell in row.cells)
+        return any(
+            keyword in text
+            for keyword in (
+                "焊道/",
+                "焊接\n方法",
+                "填充金属",
+                "焊接电流",
+                "电弧电压",
+                "牌号",
+                "直径",
+                "极性",
+                "电流(A)",
+            )
+        )
 
     def _extract_reference_values(self, standard_result: dict[str, Any]) -> dict[str, str]:
         text = self._collect_clean_reference_text(standard_result)
@@ -253,17 +238,92 @@ class WeldingDocumentAgent:
                 return match.group(1).replace(" ", "")
         return ""
 
+    def _fill_technical_paragraphs(
+        self,
+        paragraphs: Any,
+        document_fields: dict[str, str],
+    ) -> None:
+        self._fill_label_after(paragraphs, "摆动焊或不摆动焊", self._value(document_fields, "weaving"))
+        self._fill_label_after(paragraphs, "摆动参数", "/")
+        self._fill_label_after(paragraphs, "焊前清理和层间清理", self._value(document_fields, "cleaning"))
+        self._fill_label_after(paragraphs, "背面清根方法", self._value(document_fields, "back_gouging"))
+        self._fill_label_after(paragraphs, "单道焊或多道焊（每面）", self._value(document_fields, "single_or_multi_pass"))
+        self._fill_label_after(paragraphs, "单丝焊或多丝焊", self._value(document_fields, "single_or_multi_wire"))
+        self._fill_label_after(paragraphs, "导电嘴至工件距离（mm）", self._value(document_fields, "contact_tip_distance"))
+        self._fill_label_after(paragraphs, "锤击", self._value(document_fields, "peening"))
+        self._fill_label_after(paragraphs, "其他：", self._value(document_fields, "technical_other"))
+
+    def _fill_electrical_paragraphs(
+        self,
+        paragraphs: Any,
+        document_fields: dict[str, str],
+    ) -> None:
+        self._fill_label_after(paragraphs, "电流种类", self._value(document_fields, "current_type"))
+        self._fill_label_after(paragraphs, "极性", self._value(document_fields, "polarity"))
+        self._fill_label_after(paragraphs, "焊接电流范围（A）", self._value(document_fields, "current"))
+        self._fill_label_after(paragraphs, "电弧电压（V）", self._value(document_fields, "voltage"))
+        self._fill_label_after(paragraphs, "焊接速度（范围）", self._value(document_fields, "welding_speed"))
+        self._fill_label_after(paragraphs, "钨极类型及直径", self._value(document_fields, "tungsten_electrode"))
+        self._fill_label_after(paragraphs, "喷嘴直径（mm）", self._value(document_fields, "nozzle_diameter"))
+        self._fill_label_after(paragraphs, "焊接电弧种类（喷射弧、短路弧等）", self._value(document_fields, "arc_type"))
+        self._fill_label_after(paragraphs, "焊丝送进速度（cm/min）", self._value(document_fields, "wire_feed_speed"))
+
+    def _fill_gas_cell(self, cell: Any, document_fields: dict[str, str]) -> None:
+        values = (
+            f"{self._value(document_fields, 'shielding_gas')} "
+            f"{self._value(document_fields, 'shielding_gas_mix')} "
+            f"{self._value(document_fields, 'gas_flow')}"
+        )
+        self._fill_label_after(cell.paragraphs, "保护气", values)
+        self._fill_label_after(cell.paragraphs, "尾部保护气", self._value(document_fields, "trailing_gas"))
+        self._fill_label_after(cell.paragraphs, "背面保护气", self._value(document_fields, "backing_gas"))
+
+    def _fill_first_label(
+        self,
+        paragraphs: Any,
+        label: str,
+        document_fields: dict[str, str],
+        key: str,
+    ) -> None:
+        self._fill_label_after(paragraphs, label, self._value(document_fields, key))
+
     def _build_output_path(self) -> Path:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return self.config.output_dir / f"{self.config.output_prefix}_{timestamp}.docx"
 
     @staticmethod
-    def _replace_paragraph_by_keyword(paragraph: Paragraph, replacements: dict[str, str]) -> None:
-        text = paragraph.text.strip()
-        for keyword, value in replacements.items():
-            if keyword in text:
-                paragraph.text = value
+    def _fill_label_after(paragraphs: Any, keyword: str, value: str) -> None:
+        for paragraph in paragraphs:
+            if keyword in paragraph.text:
+                WeldingDocumentAgent._write_after_keyword(paragraph, keyword, value)
                 return
+
+    @staticmethod
+    def _fill_label_after_with_anchor(paragraphs: Any, anchor: str, keyword: str, value: str) -> None:
+        for paragraph in paragraphs:
+            if anchor in paragraph.text and keyword in paragraph.text:
+                WeldingDocumentAgent._write_after_keyword(paragraph, keyword, value)
+                return
+
+    @staticmethod
+    def _write_after_keyword(paragraph: Any, keyword: str, value: str) -> None:
+        clean_value = WeldingDocumentAgent._clean_value(value)
+        saw_keyword = False
+        for run in paragraph.runs:
+            text = run.text or ""
+            if saw_keyword and (not text.strip() or text.strip() == "/"):
+                run.text = clean_value
+                return
+            if keyword in text:
+                saw_keyword = True
+                suffix = text.split(keyword, 1)[1].strip()
+                if suffix and suffix != "/":
+                    continue
+
+        if paragraph.runs:
+            paragraph.runs[-1].text = f"{paragraph.runs[-1].text}{clean_value}"
+        else:
+            paragraph.add_run(clean_value)
 
     @staticmethod
     def _set_cell_text(cells: Any, index: int, value: str | None) -> None:
@@ -278,6 +338,20 @@ class WeldingDocumentAgent:
             "joint_type",
             "base_material",
             "base_thickness_or_diameter",
+            "wps_no",
+            "pqr_no",
+            "mechanization",
+            "groove_type",
+            "backing",
+            "joint_other",
+            "base_material_category",
+            "base_material_group",
+            "base_material_standard",
+            "base_material_grade",
+            "base_thickness_range_butt",
+            "base_thickness_range_fillet",
+            "pipe_diameter_thickness_butt",
+            "pipe_diameter_thickness_fillet",
             "preheat_temperature",
             "interpass_temperature",
             "current",
@@ -288,14 +362,88 @@ class WeldingDocumentAgent:
             "filler_diameter",
             "filler_standard",
             "filler_category",
+            "filler_model",
+            "filler_trade_name",
+            "filler_class",
+            "butt_weld_position",
+            "vertical_direction",
+            "pwht_temperature",
+            "pwht_time",
             "polarity",
             "shielding_gas",
+            "shielding_gas_mix",
             "gas_flow",
+            "trailing_gas",
+            "backing_gas",
+            "current_type",
+            "tungsten_electrode",
+            "nozzle_diameter",
+            "arc_type",
+            "wire_feed_speed",
+            "weaving",
+            "cleaning",
+            "back_gouging",
+            "single_or_multi_pass",
+            "single_or_multi_wire",
+            "contact_tip_distance",
+            "peening",
+            "technical_other",
+            "bead_1_process",
+            "bead_1_filler_metal",
+            "bead_1_diameter",
+            "bead_1_polarity",
+            "bead_1_current",
+            "bead_1_voltage",
+            "bead_1_speed",
+            "bead_1_heat_input",
+            "bead_2_process",
+            "bead_2_filler_metal",
+            "bead_2_diameter",
+            "bead_2_polarity",
+            "bead_2_current",
+            "bead_2_voltage",
+            "bead_2_speed",
+            "bead_2_heat_input",
         )
-        return {
+        normalized = {
             key: WeldingDocumentAgent._clean_value(document_fields.get(key))
             for key in required_keys
         }
+        for bead_no in (1, 2):
+            normalized[f"bead_{bead_no}_process"] = WeldingDocumentAgent._coalesce_value(
+                normalized.get(f"bead_{bead_no}_process"),
+                normalized.get("welding_process"),
+            )
+            normalized[f"bead_{bead_no}_filler_metal"] = WeldingDocumentAgent._coalesce_value(
+                normalized.get(f"bead_{bead_no}_filler_metal"),
+                normalized.get("filler_trade_name"),
+                normalized.get("filler_metal"),
+            )
+            normalized[f"bead_{bead_no}_diameter"] = WeldingDocumentAgent._coalesce_value(
+                normalized.get(f"bead_{bead_no}_diameter"),
+                normalized.get("filler_diameter"),
+            )
+            normalized[f"bead_{bead_no}_polarity"] = WeldingDocumentAgent._coalesce_value(
+                normalized.get(f"bead_{bead_no}_polarity"),
+                normalized.get("polarity"),
+            )
+            normalized[f"bead_{bead_no}_current"] = WeldingDocumentAgent._coalesce_value(
+                normalized.get(f"bead_{bead_no}_current"),
+                normalized.get("current"),
+            )
+            normalized[f"bead_{bead_no}_voltage"] = WeldingDocumentAgent._coalesce_value(
+                normalized.get(f"bead_{bead_no}_voltage"),
+                normalized.get("voltage"),
+            )
+            normalized[f"bead_{bead_no}_speed"] = WeldingDocumentAgent._coalesce_value(
+                normalized.get(f"bead_{bead_no}_speed"),
+                normalized.get("welding_speed"),
+            )
+            normalized[f"bead_{bead_no}_heat_input"] = WeldingDocumentAgent._coalesce_value(
+                normalized.get(f"bead_{bead_no}_heat_input"),
+                normalized.get("heat_input"),
+            )
+        return normalized
 
     @staticmethod
     def _clean_value(value: Any) -> str:
@@ -305,6 +453,14 @@ class WeldingDocumentAgent:
         if not text or any(item in lowered for item in blocked):
             return "/"
         return text
+
+    @staticmethod
+    def _coalesce_value(*values: Any) -> str:
+        for value in values:
+            clean_value = WeldingDocumentAgent._clean_value(value)
+            if clean_value != "/":
+                return clean_value
+        return "/"
 
     @staticmethod
     def _value(document_fields: dict[str, str], key: str) -> str:

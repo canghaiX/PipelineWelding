@@ -89,20 +89,17 @@ complete_case = {
 
 正在将当前焊接 JSON 信息传递给标准制定智能体，并执行 MCP 查询...
 {
-  "status": "complete",
-  "input": {
+  "document_fields": {
+    "wps_no": "/",
+    "pqr_no": "/",
     "welding_process": "GTAW+SMAW",
-    "welding_object": "管道",
-    "joint_type": "对接",
-    "base_material": "ASTM A106 Gr.B / P-No.1",
-    "base_thickness_or_diameter": "OD 219.1 x 8.2 mm"
-  },
-  "mcp_search": {
-    "enabled": true,
-    "queries": [],
-    "results": {}
-  },
-  "pipeline_welding_standard": {}
+    "mechanization": "手工",
+    "groove_type": "对接",
+    "base_material_grade": "ASTM A106 Gr.B / P-No.1",
+    "pipe_diameter_thickness_butt": "OD 219.1 x 8.2 mm",
+    "current": "/",
+    "voltage": "/"
+  }
 }
 已生成焊接标准文档：F:\pipeline\PipelineWelding\result\welding_standard_filled_20260524_120000.docx
 ```
@@ -148,7 +145,21 @@ print(state["assistant_message"])
 
 ## 管道焊接标准制定智能体
 
-标准制定智能体只接收 `welding_reask_agent` 已汇总出的 JSON 信息，然后读取本地 WPS 参考文件 [data/MHPWPS-062.docx](data/MHPWPS-062.docx)，再通过 MCP 协议连接外部搜索引擎查询相关标准资料，最终打印并返回 JSON 格式的管道焊接标准草案。
+标准制定智能体只接收 `welding_reask_agent` 已汇总出的 JSON 信息，然后读取本地 WPS 参考文件 [data/MHPWPS-062.docx](data/MHPWPS-062.docx)，再通过 MCP 协议连接外部搜索引擎查询相关标准资料，最终只打印并返回模板可填字段：
+
+```json
+{
+  "document_fields": {
+    "welding_process": "GTAW+SMAW",
+    "groove_type": "对接",
+    "base_material_grade": "ASTM A106 Gr.B / P-No.1",
+    "pipe_diameter_thickness_butt": "OD 219.1 x 8.2 mm",
+    "preheat_temperature": "/"
+  }
+}
+```
+
+`reference`、`mcp_search`、`pipeline_welding_standard` 等过程信息不会进入最终返回；无法确定的字段统一为 `/`。
 
 本地演示：
 

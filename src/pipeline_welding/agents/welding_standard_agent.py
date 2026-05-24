@@ -31,7 +31,7 @@ class WeldingStandardAgentConfig:
 
 
 class WeldingStandardAgent:
-    """Builds a JSON welding standard draft from re-ask JSON, MCP search, and WPS reference."""
+    """Builds template document fields from re-ask JSON and MCP search evidence."""
 
     def __init__(
         self,
@@ -48,37 +48,12 @@ class WeldingStandardAgent:
 
     async def build_standard_async(self, welding_json: dict[str, Any]) -> dict[str, Any]:
         normalized_input = self._normalize_welding_json(welding_json)
-        validation = self._validate_input(normalized_input)
         reference_text = self._load_reference_text()
         search_queries = self._build_search_queries(normalized_input, reference_text)
         search_results = await self._run_search(search_queries)
         document_fields = self._build_document_fields(normalized_input, search_results)
 
-        return {
-            "status": "complete" if validation["complete"] else "incomplete",
-            "input": normalized_input,
-            "missing_keys": validation["missing_keys"],
-            "reference": {
-                "file": str(self.config.reference_docx_path),
-                "available": bool(reference_text),
-                "excerpt": reference_text[: self.config.max_reference_chars],
-            },
-            "mcp_search": {
-                "enabled": self.search_client is not None,
-                "queries": search_queries,
-                "results": {
-                    query: [result.to_dict() for result in results]
-                    for query, results in search_results.items()
-                },
-            },
-            "document_fields": document_fields,
-            "pipeline_welding_standard": self._draft_standard(
-                normalized_input,
-                reference_text,
-                search_results,
-                self.config.reference_docx_path,
-            ),
-        }
+        return {"document_fields": document_fields}
 
     @staticmethod
     def _normalize_welding_json(welding_json: dict[str, Any]) -> dict[str, str]:
@@ -119,7 +94,16 @@ class WeldingStandardAgent:
 
         results: dict[str, list[SearchResult]] = {}
         for query in queries:
-            results[query] = await self.search_client.search(query)
+            try:
+                results[query] = await self.search_client.search(query)
+            except Exception as exc:
+                results[query] = [
+                    SearchResult(
+                        title="",
+                        snippet=f"error: {exc}",
+                        raw={"error": str(exc)},
+                    )
+                ]
         return results
 
     def _build_document_fields(
@@ -128,12 +112,27 @@ class WeldingStandardAgent:
         search_results: dict[str, list[SearchResult]],
     ) -> dict[str, str]:
         evidence_text = self._collect_clean_search_text(search_results)
+        base_material_text = fields.get("base_material", "")
+        searchable_text = "\n".join(part for part in (base_material_text, evidence_text) if part)
         document_fields = {
+            "wps_no": self._first_match(evidence_text, (r"(?:WPS|PWPS)[-\s]?\d+",)),
+            "pqr_no": self._first_match(evidence_text, (r"(?:PQR|WPQR|PQR-)[-\s]?[A-Z0-9-]+",)),
             "welding_process": fields.get("welding_process", ""),
+            "mechanization": self._first_match(evidence_text, (r"(手工|半自动|自动|机械化)",)) or self._default_mechanization(fields.get("welding_process", "")),
             "welding_object": fields.get("welding_object", ""),
-            "joint_type": fields.get("joint_type", ""),
+            "groove_type": fields.get("joint_type", ""),
+            "backing": self._first_match(evidence_text, (r"(?:衬垫|backing)[^\n:：]*[:：]?\s*([A-Za-z0-9#./+\-\u4e00-\u9fff]+)",)),
+            "joint_other": "/",
             "base_material": fields.get("base_material", ""),
+            "base_material_category": self._first_match(searchable_text, (r"(?:P-No\.?\s*\d+|Fe-\d+)",)),
+            "base_material_group": self._first_match(searchable_text, (r"(?:Group\s*\d+|Gr\.?\s*\d+|Fe-\d+-\d+)",)),
+            "base_material_standard": self._first_match(searchable_text, (r"(?:ASTM\s*A\d+|ASME\s*SA-?\d+|GB/T\s*\d+(?:\.\d+)?)",)),
+            "base_material_grade": fields.get("base_material", ""),
             "base_thickness_or_diameter": fields.get("base_thickness_or_diameter", ""),
+            "base_thickness_range_butt": fields.get("base_thickness_or_diameter", ""),
+            "base_thickness_range_fillet": "/",
+            "pipe_diameter_thickness_butt": fields.get("base_thickness_or_diameter", ""),
+            "pipe_diameter_thickness_fillet": "/",
             "preheat_temperature": self._first_match(evidence_text, (r"预热温度[^\d≥≤]*([≥≤]?\s*\d+\s*℃?)",)),
             "interpass_temperature": self._first_match(evidence_text, (r"层间温度[^\d≥≤]*([≥≤]?\s*\d+\s*℃?)", r"道间温度[^\d≥≤]*([≥≤]?\s*\d+\s*℃?)")),
             "current": self._first_match(evidence_text, (r"电流[^\d]*(\d+\s*[-~～]\s*\d+\s*A?)",)),
@@ -144,11 +143,74 @@ class WeldingStandardAgent:
             "filler_diameter": self._first_match(evidence_text, (r"(?:φ|Φ)\s*(\d+(?:\.\d+)?\s*mm)",)),
             "filler_standard": self._first_match(evidence_text, (r"(AWS\s*A\d+(?:\.\d+)?|GB/T\s*\d+(?:\.\d+)?)",)),
             "filler_category": self._first_match(evidence_text, (r"(焊丝|焊条|焊剂|药芯焊丝)",)),
+            "filler_model": self._first_match(evidence_text, (r"(E\d{3,4}[A-Z0-9-]*)",)),
+            "filler_trade_name": self._first_match(evidence_text, (r"(E\d{3,4}[A-Z0-9-]*)",)),
+            "filler_class": self._first_match(evidence_text, (r"(?:F-No\.?\s*\d+|A-No\.?\s*\d+)",)),
+            "butt_weld_position": self._first_match(evidence_text, (r"(?:1G|2G|5G|6G|平焊|横焊|立焊|仰焊)",)),
+            "vertical_direction": self._first_match(evidence_text, (r"(向上|向下|uphill|downhill)",)),
+            "pwht_temperature": "/",
+            "pwht_time": "/",
             "polarity": self._first_match(evidence_text, (r"(反接|正接|DCEN|DCEP|EP|EN)",)),
             "shielding_gas": self._first_match(evidence_text, (r"(CO2|二氧化碳|Ar|氩气|混合气)",)),
+            "shielding_gas_mix": "/",
             "gas_flow": self._first_match(evidence_text, (r"(\d+\s*[-~～]\s*\d+\s*L/min)",)),
+            "trailing_gas": "/",
+            "backing_gas": "/",
+            "current_type": self._first_match(evidence_text, (r"(AC|DC|直流|交流)",)),
+            "tungsten_electrode": self._first_match(evidence_text, (r"(?:钨极)[^\n:：]*[:：]?\s*([A-Za-z0-9#./+\-\u4e00-\u9fff]+)",)),
+            "nozzle_diameter": self._first_match(evidence_text, (r"(?:喷嘴)[^\d]*(\d+(?:\.\d+)?\s*mm)",)),
+            "arc_type": self._first_match(evidence_text, (r"(短路弧|喷射弧|脉冲弧|globular|spray|short circuit)",)),
+            "wire_feed_speed": "/",
+            "weaving": self._first_match(evidence_text, (r"(摆动焊|不摆动焊)",)),
+            "cleaning": self._first_match(evidence_text, (r"(?:清理|clean)[^\n。；;]*",)),
+            "back_gouging": "/",
+            "single_or_multi_pass": self._first_match(evidence_text, (r"(单道焊|多道焊|single pass|multi pass)",)),
+            "single_or_multi_wire": self._first_match(evidence_text, (r"(单丝|多丝|single wire|multi wire)",)),
+            "contact_tip_distance": self._first_match(evidence_text, (r"(\d+\s*[-~～]\s*\d+\s*mm)",)),
+            "peening": "/",
+            "technical_other": "/",
         }
-        return {key: value or "/" for key, value in document_fields.items()}
+        self._add_welding_bead_fields(document_fields)
+        return {key: self._clean_document_value(value) for key, value in document_fields.items()}
+
+    @staticmethod
+    def _add_welding_bead_fields(document_fields: dict[str, str]) -> None:
+        bead_defaults = {
+            "process": document_fields.get("welding_process", ""),
+            "filler_metal": document_fields.get("filler_trade_name") or document_fields.get("filler_metal", ""),
+            "diameter": document_fields.get("filler_diameter", ""),
+            "polarity": document_fields.get("polarity", ""),
+            "current": document_fields.get("current", ""),
+            "voltage": document_fields.get("voltage", ""),
+            "speed": document_fields.get("welding_speed", ""),
+            "heat_input": document_fields.get("heat_input", ""),
+        }
+        for bead_no in (1, 2):
+            for field_name, value in bead_defaults.items():
+                document_fields[f"bead_{bead_no}_{field_name}"] = value
+
+    @staticmethod
+    def _clean_document_value(value: Any) -> str:
+        text = str(value).strip() if value is not None else ""
+        lowered = text.lower()
+        blocked = ("not found", "unknown tool", "unknown too", "error", "missing")
+        if not text or any(item in lowered for item in blocked):
+            return "/"
+        return text
+
+    @staticmethod
+    def _default_mechanization(welding_process: str) -> str:
+        normalized = welding_process.upper()
+        manual_processes = ("SMAW", "GTAW")
+        semi_auto_processes = ("GMAW", "FCAW")
+        auto_processes = ("SAW",)
+        if any(process in normalized for process in manual_processes):
+            return "手工"
+        if any(process in normalized for process in semi_auto_processes):
+            return "半自动"
+        if any(process in normalized for process in auto_processes):
+            return "自动"
+        return ""
 
     @staticmethod
     def _collect_clean_search_text(search_results: dict[str, list[SearchResult]]) -> str:
@@ -169,51 +231,9 @@ class WeldingStandardAgent:
         for pattern in patterns:
             match = re.search(pattern, text, flags=re.IGNORECASE)
             if match:
-                return match.group(1).replace(" ", "")
+                value = match.group(1) if match.groups() else match.group(0)
+                return value.strip().replace(" ", "")
         return ""
-
-    @staticmethod
-    def _draft_standard(
-        fields: dict[str, str],
-        reference_text: str,
-        search_results: dict[str, list[SearchResult]],
-        reference_docx_path: Path,
-    ) -> dict[str, Any]:
-        evidence_titles = [
-            result.title
-            for results in search_results.values()
-            for result in results
-            if WeldingStandardAgent._is_clean_text(result.title)
-        ]
-        return {
-            "standard_name": "管道焊接工艺标准草案",
-            "applicable_scope": {
-                "welding_object": fields.get("welding_object", ""),
-                "joint_type": fields.get("joint_type", ""),
-                "base_material": fields.get("base_material", ""),
-                "base_thickness_or_diameter": fields.get("base_thickness_or_diameter", ""),
-            },
-            "welding_process": fields.get("welding_process", ""),
-            "reference_basis": {
-                "local_wps": str(reference_docx_path) if reference_text else "",
-                "mcp_search_evidence": evidence_titles,
-            },
-            "required_controls": [
-                "焊接前确认 WPS/PQR 与母材牌号、规格、厚度/管径和接头形式匹配。",
-                "焊前检查坡口、组对间隙、错边量、清洁度和定位焊质量。",
-                "按工艺文件控制焊接电流、电压、焊接速度、热输入、预热温度和层间温度。",
-                "多层多道焊时，每道焊后清理熔渣、飞溅，并检查裂纹、未熔合、气孔等缺陷。",
-                "焊后按项目标准执行外观检查、无损检测和必要的热处理记录。",
-            ],
-            "acceptance_output": {
-                "format": "json",
-                "must_include": list(STANDARD_FIELDS),
-            },
-            "notes": [
-                "该标准为基于输入 JSON、本地 WPS 文档和 MCP 搜索结果生成的草案。",
-                "正式发布前应由焊接责任工程师按适用法规、设计文件和业主标准复核。",
-            ],
-        }
 
 
 def build_welding_standard_agent(
