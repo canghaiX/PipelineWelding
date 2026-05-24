@@ -74,7 +74,7 @@ def main() -> None:
                 "wire_feed_speed": "/",
                 "weaving": "摆动焊",
                 "weaving_parameter": "/",
-                "cleaning": "焊道两侧20mm范围内去除油、污",
+                "cleaning": "Cleaning(Brushing,Grinding,etc.)MethodofBackGougingTungstenElectrodeSizeandTypePOSTWELDHEATTREATMENT(QW-407)GAS(QW-408)",
                 "back_gouging": "/",
                 "single_or_multi_pass": "多道焊",
                 "single_or_multi_wire": "单丝",

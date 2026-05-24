@@ -23,6 +23,30 @@ STANDARD_FIELDS = (
     "base_thickness_or_diameter",
 )
 
+CLEANING_DEFAULT = "焊前及层间清理至金属光泽，去除油污、铁锈、氧化皮和飞溅物"
+ENGLISH_TEMPLATE_MARKERS = (
+    "cleaning(brushing",
+    "methodofbackgouging",
+    "tungstenelectrodesizeandtype",
+    "postweldheattreatment",
+    "gas(qw-408",
+    "modeofmetaltransfer",
+    "contacttubetoworkdistance",
+    "multipleorsinglepass",
+    "multipleorsingleelectrodes",
+    "electrodespacing",
+    "preheatmaintenance",
+    "weldingprogression",
+    "ampsandvolts",
+)
+TECHNICAL_FIELD_KEYS = {
+    "cleaning",
+    "back_gouging",
+    "weaving",
+    "weaving_parameter",
+    "technical_other",
+}
+
 DOCUMENT_FIELD_KEYS = (
     "unit_name",
     "wps_no",
@@ -294,7 +318,10 @@ class WeldingStandardAgent:
             "approved_date": "/",
         }
         self._add_welding_bead_fields(document_fields)
-        return {key: self._clean_document_value(value) for key, value in document_fields.items()}
+        return {
+            key: self._clean_field_value(key, value)
+            for key, value in document_fields.items()
+        }
 
     async def _build_document_fields_with_llm(
         self,
@@ -320,7 +347,7 @@ class WeldingStandardAgent:
         merged_fields = dict(fallback_fields)
         merged_fields.update(
             {
-                key: self._clean_document_value(value)
+                key: self._clean_field_value(key, value)
                 for key, value in llm_fields.items()
                 if key in DOCUMENT_FIELD_KEYS
             }
@@ -468,7 +495,7 @@ class WeldingStandardAgent:
             self._apply_industry_defaults(finalized)
         self._add_welding_bead_fields(finalized)
         return {
-            key: self._clean_document_value(finalized.get(key))
+            key: self._clean_field_value(key, finalized.get(key))
             for key in DOCUMENT_FIELD_KEYS
         }
 
@@ -532,7 +559,7 @@ class WeldingStandardAgent:
         self._fill_default(document_fields, "wire_feed_speed", "/")
         self._fill_reference(document_fields, "weaving", "GTAW不摆动，SMAW可摆动")
         self._fill_default(document_fields, "weaving_parameter", "/")
-        self._fill_reference(document_fields, "cleaning", "焊前及层间清理至金属光泽")
+        self._fill_reference(document_fields, "cleaning", CLEANING_DEFAULT)
         self._fill_default(document_fields, "back_gouging", "/")
         self._fill_reference(document_fields, "single_or_multi_pass", "多道焊")
         self._fill_reference(document_fields, "single_or_multi_wire", "单丝/单焊条")
@@ -635,6 +662,49 @@ class WeldingStandardAgent:
         if not text or any(item in lowered for item in blocked):
             return "/"
         return text
+
+    @classmethod
+    def _clean_field_value(cls, key: str, value: Any) -> str:
+        clean_value = cls._clean_document_value(value)
+        if key == "cleaning":
+            return cls._clean_cleaning_value(clean_value)
+        if key in TECHNICAL_FIELD_KEYS and cls._is_unsafe_template_text(clean_value):
+            return "/"
+        if key in TECHNICAL_FIELD_KEYS and len(clean_value) > 60:
+            return clean_value[:60]
+        return clean_value
+
+    @classmethod
+    def _clean_cleaning_value(cls, value: Any) -> str:
+        clean_value = cls._clean_document_value(value)
+        if clean_value == "/" or cls._is_unsafe_template_text(clean_value):
+            return CLEANING_DEFAULT
+        if cls._english_ratio(clean_value) > 0.45:
+            return CLEANING_DEFAULT
+        if len(clean_value) > 70:
+            return CLEANING_DEFAULT
+        return clean_value
+
+    @classmethod
+    def _is_unsafe_template_text(cls, text: str) -> bool:
+        if not text or text == "/":
+            return False
+        compact = re.sub(r"\s+", "", text).lower()
+        if any(marker in compact for marker in ENGLISH_TEMPLATE_MARKERS):
+            return True
+        if len(compact) > 40 and cls._english_ratio(compact) > 0.7:
+            return True
+        return False
+
+    @staticmethod
+    def _english_ratio(text: str) -> float:
+        if not text:
+            return 0.0
+        letters = sum(1 for char in text if char.isascii() and char.isalpha())
+        non_space = sum(1 for char in text if not char.isspace())
+        if non_space == 0:
+            return 0.0
+        return letters / non_space
 
     @staticmethod
     def _default_mechanization(welding_process: str) -> str:

@@ -31,6 +31,9 @@
   - `bead_2_process` 使用 `SMAW`，常见焊条可参考 `E7016` 或 `E7018`，极性可参考 `EP/DCEP`。
 - 对 ASTM A106 Gr.B / P-No.1 碳钢管道，可在证据不足时给出常见参考值，例如 P-No.1、Group 1、氩气保护、常见预热/层间温度范围、常见电流电压范围。
 - 签字、审核、批准和正式日期字段如果没有用户提供，仍填 `/`，不要伪造人员或日期。
+- `cleaning`、`back_gouging`、`weaving`、`technical_other` 等技术措施字段必须使用中文短文本。
+- `cleaning` 字段推荐填写：`焊前及层间清理至金属光泽，去除油污、铁锈、氧化皮和飞溅物`。
+- 不允许把英文模板字段标题或 ASME 表格说明复制到字段值中，例如 `Cleaning(Brushing,Grinding,etc.)`、`MethodofBackGouging`、`POSTWELDHEATTREATMENT`、`GAS(QW-408)`、`TungstenElectrodeSizeandType`。
 - 只生成可供人工参考的 PWPS 字段，不视为正式批准工艺文件。
 - 不能可靠确定、来源冲突或证据不足的字段统一填 `/`。
 - 字段值必须是适合填入表格的短文本，不要写解释句、来源说明、Markdown 或长段落。
