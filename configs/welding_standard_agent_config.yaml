@@ -9,6 +9,13 @@ reference:
   max_reference_chars: 4000
   max_reference_query_chars: 1000
 
+llm:
+  enabled: true
+  model_config_path: configs/model_config.yaml
+  prompt_path: prompts/welding_standard_agent_prompt.md
+  max_evidence_chars: 9000
+  max_sources_per_query: 3
+
 mcp_search:
   enabled: true
   transport: streamable_http

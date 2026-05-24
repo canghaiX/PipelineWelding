@@ -46,7 +46,7 @@ PipelineWelding/
 
 对话流程最多支持五轮问答。每轮会把已经满足的信息存入 State，并在下一轮自动带入继续补全。信息完整后会输出 `complete_case` 字典格式；如果五轮后仍不完整，也会输出当前已收集到的 `complete_case`。
 
-在 `demo_reask.py` 中，当前置重问智能体判定信息完整，或五轮问答结束后，程序会自动把当前 State 中的 JSON 字段传递给标准制定智能体。标准制定智能体会以这些字段作为已知条件，通过 MCP 查询 `data/MHPWPS-062.docx` 模板中需要填充的信息，并返回包含 `document_fields` 的 JSON。随后文档生成智能体会使用 `document_fields` 按模板表格和段落字段一一对应填充，查询不到的字段写 `/`，并输出 `.docx` 到 `result/`。
+在 `demo_reask.py` 中，当前置重问智能体判定信息完整，或五轮问答结束后，程序会自动把当前 State 中的 JSON 字段传递给标准制定智能体。标准制定智能体会把这些字段作为约束条件，通过 MCP 查询相似标准、相似 WPS/PWPS 案例和类似焊接工况资料，再由 LLM 综合生成 `data/MHPWPS-062.docx` 模板所需的 `document_fields`。随后文档生成智能体会使用 `document_fields` 按模板表格和段落字段填充，查询或综合不到的字段写 `/`，并输出 `.docx` 到 `result/`。
 
 ### 必填字段
 
@@ -145,7 +145,7 @@ print(state["assistant_message"])
 
 ## 管道焊接标准制定智能体
 
-标准制定智能体只接收 `welding_reask_agent` 已汇总出的 JSON 信息，然后读取本地 WPS 参考文件 [data/MHPWPS-062.docx](data/MHPWPS-062.docx)，再通过 MCP 协议连接外部搜索引擎查询相关标准资料，最终只打印并返回模板可填字段：
+标准制定智能体只接收 `welding_reask_agent` 已汇总出的 JSON 信息，并把这些信息作为 PWPS 生成约束。它会读取本地 WPS 参考文件 [data/MHPWPS-062.docx](data/MHPWPS-062.docx)，通过 MCP 协议连接外部搜索引擎查询相似标准、相似 WPS/PWPS 案例和类似焊接工况资料，再由 LLM 综合生成模板可填字段。最终只打印并返回 `document_fields`：
 
 ```json
 {
@@ -199,6 +199,13 @@ mcp_search:
   args: []
   url: https://mcp.tavily.com/mcp/?tavilyApiKey=${TAVILY_API_KEY}
   max_results: 5
+
+llm:
+  enabled: true
+  model_config_path: configs/model_config.yaml
+  prompt_path: prompts/welding_standard_agent_prompt.md
+  max_evidence_chars: 9000
+  max_sources_per_query: 3
 ```
 
 运行 `python .\demo_standard_agent.py` 时，MCP Client 会直接连接 Tavily 在线 MCP Server。`.env` 中只需要填写：
