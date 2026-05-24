@@ -12,7 +12,10 @@ from pipeline_welding.graphs import (  # noqa: E402
     build_welding_reask_graph,
     create_initial_state,
 )
-from pipeline_welding.agents import build_welding_standard_agent_from_config  # noqa: E402
+from pipeline_welding.agents import (  # noqa: E402
+    build_welding_document_agent_from_config,
+    build_welding_standard_agent_from_config,
+)
 from pipeline_welding.config import load_yaml_config  # noqa: E402
 
 
@@ -55,7 +58,7 @@ def run_welding_standard_agent(state: dict) -> None:
 
     config = load_yaml_config(ROOT_DIR / "configs" / "welding_standard_agent_config.yaml")
     standard_agent = build_welding_standard_agent_from_config(config)
-    standard_agent.build_standard(
+    standard_result = standard_agent.build_standard(
         {
             "fields": state.get("fields", {}),
             "reask_complete": state.get("complete", False),
@@ -63,6 +66,15 @@ def run_welding_standard_agent(state: dict) -> None:
             "round_count": state.get("round_count", 0),
         }
     )
+    run_welding_document_agent(standard_result)
+
+
+def run_welding_document_agent(standard_result: dict) -> None:
+    document_config = load_yaml_config(ROOT_DIR / "configs" / "welding_document_agent_config.yaml")
+    document_config["template"]["docx_path"] = str(ROOT_DIR / document_config["template"]["docx_path"])
+    document_config["output"]["dir"] = str(ROOT_DIR / document_config["output"]["dir"])
+    document_agent = build_welding_document_agent_from_config(document_config)
+    document_agent.build_document(standard_result)
 
 
 if __name__ == "__main__":

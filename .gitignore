@@ -8,5 +8,6 @@ __pycache__/
 venv/
 .env
 logs/
+result/
 data/raw/
 data/processed/

@@ -1,0 +1,12 @@
+agent:
+  name: welding_document_agent
+  role: 焊接标准文档生成智能体
+  input_source: welding_standard_agent_json
+  output_format: docx
+
+template:
+  docx_path: data/MHPWPS-062.docx
+
+output:
+  dir: result
+  prefix: welding_standard_filled

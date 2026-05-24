@@ -9,15 +9,18 @@ PipelineWelding/
 │   ├── agent_config.yaml              # 智能体行为配置
 │   ├── model_config.yaml              # 模型供应商、模型名、温度、重试等配置
 │   ├── welding_required_fields.yaml   # 焊接缺陷重问必填字段 schema
-│   └── welding_standard_agent_config.yaml # 标准制定智能体配置
+│   ├── welding_standard_agent_config.yaml # 标准制定智能体配置
+│   └── welding_document_agent_config.yaml # 文档生成智能体配置
 ├── prompts/
 │   ├── welding_reask_agent_prompt.md  # 缺陷重问智能体系统提示词
-│   └── welding_standard_agent_prompt.md # 标准制定智能体系统提示词
+│   ├── welding_standard_agent_prompt.md # 标准制定智能体系统提示词
+│   └── welding_document_agent_prompt.md # 文档生成智能体系统提示词
 ├── src/
 │   └── pipeline_welding/
 │       ├── agents/
 │       │   ├── welding_reask_agent.py # 缺陷重问智能体核心逻辑
-│       │   └── welding_standard_agent.py # 标准制定智能体核心逻辑
+│       │   ├── welding_standard_agent.py # 标准制定智能体核心逻辑
+│       │   └── welding_document_agent.py # 标准文档生成智能体核心逻辑
 │       ├── graphs/
 │       │   └── welding_reask_graph.py # LangGraph State 对话流程
 │       ├── documents/
@@ -30,6 +33,7 @@ PipelineWelding/
 │   └── MHPWPS-062.docx                # 本地 WPS 参考文件
 ├── demo_reask.py                      # 本地演示脚本
 ├── demo_standard_agent.py             # 标准制定智能体演示脚本
+├── demo_document_agent.py             # 文档生成智能体演示脚本
 ├── requirements.txt                   # 运行依赖
 ├── pyproject.toml                     # Python 工程打包配置
 ├── .env.example                       # 环境变量模板
@@ -42,7 +46,7 @@ PipelineWelding/
 
 对话流程最多支持五轮问答。每轮会把已经满足的信息存入 State，并在下一轮自动带入继续补全。信息完整后会输出 `complete_case` 字典格式；如果五轮后仍不完整，也会输出当前已收集到的 `complete_case`。
 
-在 `demo_reask.py` 中，当前置重问智能体判定信息完整，或五轮问答结束后，程序会自动把当前 State 中的 JSON 字段传递给标准制定智能体，并继续执行 Tavily MCP 查询与标准 JSON 汇总。
+在 `demo_reask.py` 中，当前置重问智能体判定信息完整，或五轮问答结束后，程序会自动把当前 State 中的 JSON 字段传递给标准制定智能体，并继续执行 Tavily MCP 查询与标准 JSON 汇总。随后会把标准制定智能体返回的 JSON 传递给文档生成智能体，按照 `data/MHPWPS-062.docx` 的文本格式填充可识别字段，并输出 `.docx` 到 `result/`。
 
 ### 必填字段
 
@@ -100,6 +104,7 @@ complete_case = {
   },
   "pipeline_welding_standard": {}
 }
+已生成焊接标准文档：F:\pipeline\PipelineWelding\result\welding_standard_filled_20260524_120000.docx
 ```
 
 ### 代码调用
@@ -192,6 +197,22 @@ TAVILY_API_KEY=replace-with-your-tavily-api-key
 TAVILY_SEARCH_DEPTH=basic
 ```
 
+## 焊接标准文档生成智能体
+
+文档生成智能体接收 `welding_standard_agent` 返回的 JSON，读取 [data/MHPWPS-062.docx](data/MHPWPS-062.docx) 作为模板，填充能明确映射的信息，并在文档末尾追加智能体汇总、MCP 搜索依据和标准 JSON。
+
+单独演示：
+
+```powershell
+python .\demo_document_agent.py
+```
+
+输出目录：
+
+```text
+result/
+```
+
 ### 配置文件说明
 
 | 文件 | 作用 |
@@ -200,5 +221,6 @@ TAVILY_SEARCH_DEPTH=basic
 | `configs/agent_config.yaml` | 智能体行为配置，包括 Prompt 路径、是否缺失重问、是否非法枚举重问、输出格式 |
 | `configs/welding_required_fields.yaml` | 焊接业务字段配置，包括焊接工艺、焊接对象、接头形式、母材牌号/规格、母材厚度/管径 |
 | `configs/welding_standard_agent_config.yaml` | 标准制定智能体配置，包括 WPS 文档路径和 MCP 搜索连接参数 |
+| `configs/welding_document_agent_config.yaml` | 文档生成智能体配置，包括模板 DOCX 路径、输出目录和文件名前缀 |
 | `.env.example` | 环境变量模板，不提交真实密钥 |
 | `requirements.txt` | 项目全部依赖，包括运行、测试和代码检查依赖 |
