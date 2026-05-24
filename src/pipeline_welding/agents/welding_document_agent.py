@@ -59,29 +59,30 @@ class WeldingDocumentAgent:
         document: Document,
         document_fields: dict[str, str],
     ) -> None:
-        self._fill_first_label(document.paragraphs, "预焊接工艺规程编号", document_fields, "wps_no")
-        self._fill_first_label(document.paragraphs, "所支持的焊接工艺评定编号", document_fields, "pqr_no")
-        self._fill_first_label(document.paragraphs, "焊接方法", document_fields, "welding_process")
-        self._fill_first_label(document.paragraphs, "机械化程度", document_fields, "mechanization")
-        self._fill_first_label(document.paragraphs, "类别号", document_fields, "base_material_category")
-        self._fill_label_after(document.paragraphs, "组别号", self._value(document_fields, "base_material_group"))
-        self._fill_label_after(document.paragraphs, "相焊或标准号", self._value(document_fields, "base_material_standard"))
-        self._fill_label_after(document.paragraphs, "材料代号", self._value(document_fields, "base_material_grade"))
-        self._fill_first_label(document.paragraphs, "对接焊缝焊件母材厚度范围", document_fields, "base_thickness_range_butt")
-        self._fill_first_label(document.paragraphs, "角焊缝焊件母材厚度范围", document_fields, "base_thickness_range_fillet")
+        paragraphs = self._iter_all_paragraphs(document)
+        self._fill_first_label(paragraphs, "预焊接工艺规程编号", document_fields, "wps_no")
+        self._fill_first_label(paragraphs, "所支持的焊接工艺评定编号", document_fields, "pqr_no")
+        self._fill_first_label(paragraphs, "焊接方法", document_fields, "welding_process")
+        self._fill_first_label(paragraphs, "机械化程度", document_fields, "mechanization")
+        self._fill_first_label(paragraphs, "类别号", document_fields, "base_material_category")
+        self._fill_label_after(paragraphs, "组别号", self._value(document_fields, "base_material_group"))
+        self._fill_label_after(paragraphs, "相焊或标准号", self._value(document_fields, "base_material_standard"))
+        self._fill_label_after(paragraphs, "材料代号", self._value(document_fields, "base_material_grade"))
+        self._fill_first_label(paragraphs, "对接焊缝焊件母材厚度范围", document_fields, "base_thickness_range_butt")
+        self._fill_first_label(paragraphs, "角焊缝焊件母材厚度范围", document_fields, "base_thickness_range_fillet")
         self._fill_label_after(
-            document.paragraphs,
+            paragraphs,
             "管子直径、壁厚范围：对接焊缝",
             self._value(document_fields, "pipe_diameter_thickness_butt"),
         )
         self._fill_label_after_with_anchor(
-            document.paragraphs,
+            paragraphs,
             "管子直径、壁厚范围",
             "角焊缝",
             self._value(document_fields, "pipe_diameter_thickness_fillet"),
         )
-        self._fill_electrical_paragraphs(document.paragraphs, document_fields)
-        self._fill_technical_paragraphs(document.paragraphs, document_fields)
+        self._fill_electrical_paragraphs(paragraphs, document_fields)
+        self._fill_technical_paragraphs(paragraphs, document_fields)
 
     def _fill_known_tables(
         self,
@@ -146,7 +147,7 @@ class WeldingDocumentAgent:
     @staticmethod
     def _is_welding_parameter_table(table: Any) -> bool:
         text = "\n".join(cell.text for row in table.rows for cell in row.cells)
-        return all(keyword in text for keyword in ("焊道/焊层", "焊接方法", "焊接电流"))
+        return all(keyword in text for keyword in ("焊道", "焊接", "电流"))
 
     def _fill_welding_parameter_table(
         self,
@@ -268,6 +269,26 @@ class WeldingDocumentAgent:
         self._fill_label_after(paragraphs, "焊接电弧种类（喷射弧、短路弧等）", self._value(document_fields, "arc_type"))
         self._fill_label_after(paragraphs, "焊丝送进速度（cm/min）", self._value(document_fields, "wire_feed_speed"))
 
+    def _iter_all_paragraphs(self, document: Document) -> list[Any]:
+        paragraphs = list(document.paragraphs)
+        for table in document.tables:
+            paragraphs.extend(self._iter_table_paragraphs(table))
+        return paragraphs
+
+    def _iter_table_paragraphs(self, table: Any) -> list[Any]:
+        paragraphs: list[Any] = []
+        seen_cells: set[int] = set()
+        for row in table.rows:
+            for cell in row.cells:
+                cell_id = id(cell._tc)
+                if cell_id in seen_cells:
+                    continue
+                seen_cells.add(cell_id)
+                paragraphs.extend(cell.paragraphs)
+                for nested_table in cell.tables:
+                    paragraphs.extend(self._iter_table_paragraphs(nested_table))
+        return paragraphs
+
     def _fill_gas_cell(self, cell: Any, document_fields: dict[str, str]) -> None:
         values = (
             f"{self._value(document_fields, 'shielding_gas')} "
@@ -317,6 +338,9 @@ class WeldingDocumentAgent:
             if keyword in text:
                 saw_keyword = True
                 suffix = text.split(keyword, 1)[1].strip()
+                if suffix and suffix != "/" and len(suffix) <= 18:
+                    run.text = text.split(keyword, 1)[0] + keyword + clean_value
+                    return
                 if suffix and suffix != "/":
                     continue
 

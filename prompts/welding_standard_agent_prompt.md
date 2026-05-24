@@ -23,6 +23,11 @@
 
 - 用户输入是约束条件，优先选择工艺、母材、接头形式、管径/壁厚相近的资料。
 - 可以从相似 PWPS/WPS 或标准资料中综合填充焊材、预热、层间温度、电流、电压、焊接速度、保护气、技术措施等字段。
+- 优先填充模板中容易留空的区域：焊接位置、焊后热处理、预热、气体、电特性、焊道/焊层参数、技术措施。
+- 当工艺为 `GTAW+SMAW` 时，默认按 `GTAW` 根焊、`SMAW` 填充/盖面生成焊道表字段：
+  - `bead_1_process` 使用 `GTAW`，常见焊丝可参考 `ER70S-6`，极性可参考 `EN/DCEN`。
+  - `bead_2_process` 使用 `SMAW`，常见焊条可参考 `E7016` 或 `E7018`，极性可参考 `EP/DCEP`。
+- 对 ASTM A106 Gr.B / P-No.1 碳钢管道，可在证据不足时给出常见参考值，例如 P-No.1、Group 1、氩气保护、常见预热/层间温度范围、常见电流电压范围。
 - 只生成可供人工参考的 PWPS 字段，不视为正式批准工艺文件。
 - 不能可靠确定、来源冲突或证据不足的字段统一填 `/`。
 - 字段值必须是适合填入表格的短文本，不要写解释句、来源说明、Markdown 或长段落。
@@ -41,7 +46,13 @@
     "mechanization": "手工",
     "groove_type": "V形坡口",
     "base_material_grade": "ASTM A106 Gr.B",
-    "pipe_diameter_thickness_butt": "OD 219.1 x 8.2 mm"
+    "pipe_diameter_thickness_butt": "OD 219.1 x 8.2 mm",
+    "bead_1_process": "GTAW",
+    "bead_2_process": "SMAW",
+    "bead_1_filler_metal": "ER70S-6",
+    "bead_2_filler_metal": "E7016",
+    "shielding_gas": "Ar",
+    "current_type": "DC"
   }
 }
 ```

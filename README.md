@@ -206,6 +206,11 @@ llm:
   prompt_path: prompts/welding_standard_agent_prompt.md
   max_evidence_chars: 9000
   max_sources_per_query: 3
+
+generation:
+  use_industry_defaults: true
+  bead_strategy: root_gtaw_fill_smaw
+  default_unknown: "/"
 ```
 
 运行 `python .\demo_standard_agent.py` 时，MCP Client 会直接连接 Tavily 在线 MCP Server。`.env` 中只需要填写：

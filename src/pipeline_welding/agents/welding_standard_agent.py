@@ -108,6 +108,9 @@ class WeldingStandardAgentConfig:
     prompt_path: Path = Path("prompts/welding_standard_agent_prompt.md")
     max_evidence_chars: int = 9000
     max_sources_per_query: int = 3
+    use_industry_defaults: bool = True
+    bead_strategy: str = "root_gtaw_fill_smaw"
+    default_unknown: str = "/"
 
 
 class WeldingStandardAgent:
@@ -167,6 +170,10 @@ class WeldingStandardAgent:
         return [
             f"{base_terms} 相似 PWPS WPS 焊接工艺规程",
             f"{process} {material} {joint_type} pipe WPS welding procedure specification",
+            f"{process} root pass fill cap {material} {size} PWPS WPS",
+            f"GTAW root pass SMAW fill cap {material} pipe WPS",
+            f"ASTM A106 Gr.B WPS ER70S-6 E7016 E7018 GTAW SMAW",
+            f"ASME IX P-No.1 WPS preheat interpass temperature carbon steel pipe",
             f"{material} P-No Group ASME IX welding material classification",
             f"{process} {material} {joint_type} filler metal electrode wire AWS",
             f"{process} {material} {size} welding current voltage travel speed heat input",
@@ -431,11 +438,107 @@ class WeldingStandardAgent:
             finalized["mechanization"] = self._clean_document_value(
                 self._default_mechanization(finalized["welding_process"])
             )
+        if self.config.use_industry_defaults:
+            self._apply_industry_defaults(finalized)
         self._add_welding_bead_fields(finalized)
         return {
             key: self._clean_document_value(finalized.get(key))
             for key in DOCUMENT_FIELD_KEYS
         }
+
+    def _apply_industry_defaults(self, document_fields: dict[str, str]) -> None:
+        process = document_fields.get("welding_process", "").upper()
+        material = document_fields.get("base_material", "")
+        size = document_fields.get("base_thickness_or_diameter", "")
+
+        if "ASTM A106" in material.upper() or "A106" in material.upper():
+            self._fill_default(document_fields, "base_material_category", "P-No.1")
+            self._fill_default(document_fields, "base_material_group", "Group 1")
+            self._fill_default(document_fields, "base_material_standard", "ASTM A106")
+            self._fill_default(document_fields, "base_material_grade", "ASTM A106 Gr.B")
+        if "P-NO.1" in material.upper() or "P-NO. 1" in material.upper():
+            self._fill_default(document_fields, "base_material_category", "P-No.1")
+
+        if "对接" in document_fields.get("joint_type", ""):
+            self._fill_default(document_fields, "groove_type", "V形坡口")
+        self._fill_default(document_fields, "backing", "无")
+        self._fill_default(document_fields, "joint_other", "/")
+        self._fill_default(document_fields, "base_thickness_range_butt", size)
+        self._fill_default(document_fields, "pipe_diameter_thickness_butt", size)
+        self._fill_default(document_fields, "base_thickness_range_fillet", "/")
+        self._fill_default(document_fields, "pipe_diameter_thickness_fillet", "/")
+
+        if "GTAW" in process:
+            self._fill_default(document_fields, "shielding_gas", "Ar")
+            self._fill_default(document_fields, "shielding_gas_mix", "99.99%")
+            self._fill_default(document_fields, "gas_flow", "8-15 L/min")
+            self._fill_default(document_fields, "backing_gas", "Ar")
+            self._fill_default(document_fields, "trailing_gas", "/")
+            self._fill_default(document_fields, "tungsten_electrode", "铈钨 2.4 mm")
+            self._fill_default(document_fields, "nozzle_diameter", "8-12 mm")
+            self._fill_default(document_fields, "current_type", "DC")
+
+        if "SMAW" in process:
+            self._fill_default(document_fields, "filler_category", "焊丝/焊条")
+            self._fill_default(document_fields, "filler_standard", "AWS A5.18 / AWS A5.1")
+            self._fill_default(document_fields, "filler_diameter", "2.4 mm / 3.2 mm")
+            self._fill_default(document_fields, "filler_model", "ER70S-6 / E7016")
+            self._fill_default(document_fields, "filler_trade_name", "ER70S-6 / E7016")
+
+        self._fill_default(document_fields, "butt_weld_position", "5G")
+        self._fill_default(document_fields, "vertical_direction", "向上")
+        self._fill_default(document_fields, "pwht_temperature", "/")
+        self._fill_default(document_fields, "pwht_time", "/")
+        self._fill_default(document_fields, "preheat_temperature", "≥10℃")
+        self._fill_default(document_fields, "interpass_temperature", "≤250℃")
+        self._fill_default(document_fields, "current_type", "DC")
+        self._fill_default(document_fields, "polarity", "EN/EP")
+        self._fill_default(document_fields, "current", "GTAW 80-130A / SMAW 90-130A")
+        self._fill_default(document_fields, "voltage", "GTAW 10-16V / SMAW 22-28V")
+        self._fill_default(document_fields, "welding_speed", "50-160 mm/min")
+        self._fill_default(document_fields, "heat_input", "/")
+        self._fill_default(document_fields, "arc_type", "/")
+        self._fill_default(document_fields, "wire_feed_speed", "/")
+        self._fill_default(document_fields, "weaving", "GTAW不摆动，SMAW可摆动")
+        self._fill_default(document_fields, "cleaning", "焊前及层间清理至金属光泽")
+        self._fill_default(document_fields, "back_gouging", "/")
+        self._fill_default(document_fields, "single_or_multi_pass", "多道焊")
+        self._fill_default(document_fields, "single_or_multi_wire", "单丝/单焊条")
+        self._fill_default(document_fields, "contact_tip_distance", "/")
+        self._fill_default(document_fields, "peening", "否")
+        self._fill_default(document_fields, "technical_other", "/")
+
+        if self.config.bead_strategy == "root_gtaw_fill_smaw" and "GTAW" in process and "SMAW" in process:
+            self._apply_gtaw_smaw_bead_defaults(document_fields)
+
+    @staticmethod
+    def _fill_default(document_fields: dict[str, str], key: str, value: str) -> None:
+        if WeldingStandardAgent._clean_document_value(document_fields.get(key)) == "/":
+            document_fields[key] = value
+
+    @staticmethod
+    def _apply_gtaw_smaw_bead_defaults(document_fields: dict[str, str]) -> None:
+        bead_defaults = {
+            "bead_1_process": "GTAW",
+            "bead_1_filler_metal": "ER70S-6",
+            "bead_1_diameter": "2.4 mm",
+            "bead_1_polarity": "EN",
+            "bead_1_current": "80-130",
+            "bead_1_voltage": "10-16",
+            "bead_1_speed": "50-120",
+            "bead_1_heat_input": "/",
+            "bead_2_process": "SMAW",
+            "bead_2_filler_metal": "E7016",
+            "bead_2_diameter": "3.2 mm",
+            "bead_2_polarity": "EP",
+            "bead_2_current": "90-130",
+            "bead_2_voltage": "22-28",
+            "bead_2_speed": "80-160",
+            "bead_2_heat_input": "/",
+        }
+        for key, value in bead_defaults.items():
+            if WeldingStandardAgent._clean_document_value(document_fields.get(key)) == "/":
+                document_fields[key] = value
 
     @staticmethod
     def _add_welding_bead_fields(document_fields: dict[str, str]) -> None:
@@ -522,6 +625,9 @@ def build_welding_standard_agent_from_config(config: dict[str, Any]) -> WeldingS
         prompt_path=Path(config.get("llm", {}).get("prompt_path", "prompts/welding_standard_agent_prompt.md")),
         max_evidence_chars=int(config.get("llm", {}).get("max_evidence_chars", 9000)),
         max_sources_per_query=int(config.get("llm", {}).get("max_sources_per_query", 3)),
+        use_industry_defaults=bool(config.get("generation", {}).get("use_industry_defaults", True)),
+        bead_strategy=str(config.get("generation", {}).get("bead_strategy", "root_gtaw_fill_smaw")),
+        default_unknown=str(config.get("generation", {}).get("default_unknown", "/")),
     )
     search_client = None
     if mcp_config.get("enabled"):

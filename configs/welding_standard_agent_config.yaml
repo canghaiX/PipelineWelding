@@ -16,6 +16,11 @@ llm:
   max_evidence_chars: 9000
   max_sources_per_query: 3
 
+generation:
+  use_industry_defaults: true
+  bead_strategy: root_gtaw_fill_smaw
+  default_unknown: "/"
+
 mcp_search:
   enabled: true
   transport: streamable_http
