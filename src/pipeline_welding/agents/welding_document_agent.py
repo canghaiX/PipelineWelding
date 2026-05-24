@@ -30,43 +30,46 @@ class WeldingDocumentAgent:
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
         document = Document(str(template_path))
 
-        fields = self._extract_input_fields(standard_result)
-        reference_values = self._extract_reference_values(standard_result)
-        self._fill_known_paragraphs(document, fields, reference_values)
-        self._fill_known_tables(document, fields, reference_values)
+        document_fields = self._extract_document_fields(standard_result)
+        self._fill_known_paragraphs(document, document_fields)
+        self._fill_known_tables(document, document_fields)
 
         output_path = self._build_output_path()
         document.save(str(output_path))
         print(f"已生成焊接标准文档：{output_path}")
         return output_path
 
-    @staticmethod
-    def _extract_input_fields(standard_result: dict[str, Any]) -> dict[str, str]:
+    def _extract_document_fields(self, standard_result: dict[str, Any]) -> dict[str, str]:
+        document_fields = standard_result.get("document_fields", {})
+        if isinstance(document_fields, dict) and document_fields:
+            return {key: self._clean_value(value) for key, value in document_fields.items()}
+
         fields = standard_result.get("input", {})
         if not isinstance(fields, dict):
             return {}
-        return {key: str(value).strip() for key, value in fields.items()}
+        fallback = {key: self._clean_value(value) for key, value in fields.items()}
+        fallback.update(self._extract_reference_values(standard_result))
+        return fallback
 
     def _fill_known_paragraphs(
         self,
         document: Document,
-        fields: dict[str, str],
-        reference_values: dict[str, str],
+        document_fields: dict[str, str],
     ) -> None:
         replacements: dict[str, str] = {
-            "焊接方法": self._line_value("焊接方法", fields.get("welding_process")),
-            "坡口形式": self._line_value("坡口形式", fields.get("joint_type")),
-            "类别号": self._base_material_line(fields.get("base_material")),
+            "焊接方法": self._line_value("焊接方法", document_fields.get("welding_process")),
+            "坡口形式": self._line_value("坡口形式", document_fields.get("joint_type")),
+            "类别号": self._base_material_line(document_fields.get("base_material")),
             "对接焊缝焊件母材厚度范围": self._line_value(
                 "对接焊缝焊件母材厚度范围",
-                fields.get("base_thickness_or_diameter"),
+                document_fields.get("base_thickness_or_diameter"),
             ),
             "管子直径、壁厚范围": self._line_value(
                 "管子直径、壁厚范围：对接焊缝",
-                fields.get("base_thickness_or_diameter"),
+                document_fields.get("base_thickness_or_diameter"),
             ),
-            "最小预热温度": self._line_value("最小预热温度（℃）", reference_values.get("preheat_temperature")),
-            "最大道间温度": self._line_value("最大道间温度（℃）", reference_values.get("interpass_temperature")),
+            "最小预热温度": self._line_value("最小预热温度（℃）", document_fields.get("preheat_temperature")),
+            "最大道间温度": self._line_value("最大道间温度（℃）", document_fields.get("interpass_temperature")),
         }
 
         for paragraph in document.paragraphs:
@@ -81,19 +84,18 @@ class WeldingDocumentAgent:
     def _fill_known_tables(
         self,
         document: Document,
-        fields: dict[str, str],
-        reference_values: dict[str, str],
+        document_fields: dict[str, str],
     ) -> None:
         for table in document.tables:
-            self._fill_labeled_table(table, reference_values)
+            self._fill_labeled_table(table, document_fields)
             if self._is_welding_parameter_table(table):
-                self._fill_welding_parameter_table(table, fields, reference_values)
+                self._fill_welding_parameter_table(table, document_fields)
 
-    def _fill_labeled_table(self, table: Any, reference_values: dict[str, str]) -> None:
+    def _fill_labeled_table(self, table: Any, document_fields: dict[str, str]) -> None:
         label_to_value = {
-            "填充金属尺寸": reference_values.get("filler_diameter"),
-            "焊材型号": reference_values.get("filler_metal"),
-            "焊材牌号": reference_values.get("filler_metal"),
+            "填充金属尺寸": document_fields.get("filler_diameter"),
+            "焊材型号": document_fields.get("filler_metal"),
+            "焊材牌号": document_fields.get("filler_metal"),
         }
         for row in table.rows:
             if len(row.cells) < 2:
@@ -112,17 +114,16 @@ class WeldingDocumentAgent:
     def _fill_welding_parameter_table(
         self,
         table: Any,
-        fields: dict[str, str],
-        reference_values: dict[str, str],
+        document_fields: dict[str, str],
     ) -> None:
-        welding_process = fields.get("welding_process")
-        filler_metal = reference_values.get("filler_metal")
-        filler_diameter = reference_values.get("filler_diameter")
-        polarity = reference_values.get("polarity")
-        current = reference_values.get("current")
-        voltage = reference_values.get("voltage")
-        speed = reference_values.get("welding_speed")
-        heat_input = reference_values.get("heat_input")
+        welding_process = document_fields.get("welding_process")
+        filler_metal = document_fields.get("filler_metal")
+        filler_diameter = document_fields.get("filler_diameter")
+        polarity = document_fields.get("polarity")
+        current = document_fields.get("current")
+        voltage = document_fields.get("voltage")
+        speed = document_fields.get("welding_speed")
+        heat_input = document_fields.get("heat_input")
 
         for row in table.rows:
             cells = row.cells
@@ -139,15 +140,11 @@ class WeldingDocumentAgent:
 
     @staticmethod
     def _line_value(label: str, value: str | None) -> str:
-        if not value:
-            return ""
-        return f"{label}{value}"
+        return f"{label}{WeldingDocumentAgent._clean_value(value)}"
 
     @staticmethod
     def _base_material_line(value: str | None) -> str:
-        if not value:
-            return ""
-        return f"母材：标准号/材料代号 {value}"
+        return f"母材：标准号/材料代号 {WeldingDocumentAgent._clean_value(value)}"
 
     def _extract_reference_values(self, standard_result: dict[str, Any]) -> dict[str, str]:
         text = self._collect_clean_reference_text(standard_result)
@@ -211,8 +208,17 @@ class WeldingDocumentAgent:
 
     @staticmethod
     def _set_cell_text(cells: Any, index: int, value: str | None) -> None:
-        if value and index < len(cells):
-            cells[index].text = value
+        if index < len(cells):
+            cells[index].text = WeldingDocumentAgent._clean_value(value)
+
+    @staticmethod
+    def _clean_value(value: Any) -> str:
+        text = str(value).strip() if value is not None else ""
+        lowered = text.lower()
+        blocked = ("not found", "unknown tool", "unknown too", "error", "missing")
+        if not text or any(item in lowered for item in blocked):
+            return "/"
+        return text
 
 
 def build_welding_document_agent(

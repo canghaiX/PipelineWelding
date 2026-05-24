@@ -46,7 +46,7 @@ PipelineWelding/
 
 对话流程最多支持五轮问答。每轮会把已经满足的信息存入 State，并在下一轮自动带入继续补全。信息完整后会输出 `complete_case` 字典格式；如果五轮后仍不完整，也会输出当前已收集到的 `complete_case`。
 
-在 `demo_reask.py` 中，当前置重问智能体判定信息完整，或五轮问答结束后，程序会自动把当前 State 中的 JSON 字段传递给标准制定智能体，并继续执行 Tavily MCP 查询与标准 JSON 汇总。随后会把标准制定智能体返回的 JSON 传递给文档生成智能体，按照 `data/MHPWPS-062.docx` 的表格和段落字段一一对应填充可识别信息，并输出 `.docx` 到 `result/`。
+在 `demo_reask.py` 中，当前置重问智能体判定信息完整，或五轮问答结束后，程序会自动把当前 State 中的 JSON 字段传递给标准制定智能体。标准制定智能体会以这些字段作为已知条件，通过 MCP 查询 `data/MHPWPS-062.docx` 模板中需要填充的信息，并返回包含 `document_fields` 的 JSON。随后文档生成智能体会使用 `document_fields` 按模板表格和段落字段一一对应填充，查询不到的字段写 `/`，并输出 `.docx` 到 `result/`。
 
 ### 必填字段
 

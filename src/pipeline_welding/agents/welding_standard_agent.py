@@ -52,6 +52,7 @@ class WeldingStandardAgent:
         reference_text = self._load_reference_text()
         search_queries = self._build_search_queries(normalized_input, reference_text)
         search_results = await self._run_search(search_queries)
+        document_fields = self._build_document_fields(normalized_input, search_results)
 
         return {
             "status": "complete" if validation["complete"] else "incomplete",
@@ -70,6 +71,7 @@ class WeldingStandardAgent:
                     for query, results in search_results.items()
                 },
             },
+            "document_fields": document_fields,
             "pipeline_welding_standard": self._draft_standard(
                 normalized_input,
                 reference_text,
@@ -104,9 +106,9 @@ class WeldingStandardAgent:
 
         base_terms = " ".join(term for term in (process, material, size, joint_type, welding_object) if term)
         return [
-            f"{base_terms} 管道焊接 标准 WPS {wps_terms}",
-            f"{process} {material} {joint_type} 焊接工艺评定 标准 {wps_terms}",
-            f"{material} {size} 管道 焊接 参数 预热 层间温度 {wps_terms}",
+            f"{base_terms} WPS 焊接方法 接头形式 母材 厚度 管径 {wps_terms}",
+            f"{process} {material} {joint_type} 焊接参数 电流 电压 焊接速度 线能量 焊材 {wps_terms}",
+            f"{material} {size} 管道焊接 预热温度 层间温度 填充金属 保护气 {wps_terms}",
         ]
 
     def _compact_reference_for_query(self, reference_text: str) -> str:
@@ -121,6 +123,54 @@ class WeldingStandardAgent:
         for query in queries:
             results[query] = await self.search_client.search(query)
         return results
+
+    def _build_document_fields(
+        self,
+        fields: dict[str, str],
+        search_results: dict[str, list[SearchResult]],
+    ) -> dict[str, str]:
+        evidence_text = self._collect_clean_search_text(search_results)
+        document_fields = {
+            "welding_process": fields.get("welding_process", ""),
+            "welding_object": fields.get("welding_object", ""),
+            "joint_type": fields.get("joint_type", ""),
+            "base_material": fields.get("base_material", ""),
+            "base_thickness_or_diameter": fields.get("base_thickness_or_diameter", ""),
+            "preheat_temperature": self._first_match(evidence_text, (r"预热温度[^\d≥≤]*([≥≤]?\s*\d+\s*℃?)",)),
+            "interpass_temperature": self._first_match(evidence_text, (r"层间温度[^\d≥≤]*([≥≤]?\s*\d+\s*℃?)", r"道间温度[^\d≥≤]*([≥≤]?\s*\d+\s*℃?)")),
+            "current": self._first_match(evidence_text, (r"电流[^\d]*(\d+\s*[-~～]\s*\d+\s*A?)",)),
+            "voltage": self._first_match(evidence_text, (r"电压[^\d]*(\d+\s*[-~～]\s*\d+\s*V?)",)),
+            "welding_speed": self._first_match(evidence_text, (r"焊接速度[^\d]*(\d+\s*[-~～]\s*\d+\s*(?:mm/min)?)",)),
+            "heat_input": self._first_match(evidence_text, (r"线能量[^\d]*(\d+(?:\.\d+)?\s*(?:kJ/cm)?)",)),
+            "filler_metal": self._first_match(evidence_text, (r"(E\d{3,4}[A-Z0-9-]*)",)),
+            "filler_diameter": self._first_match(evidence_text, (r"(?:φ|Φ)\s*(\d+(?:\.\d+)?\s*mm)",)),
+            "polarity": self._first_match(evidence_text, (r"(反接|正接|DCEN|DCEP|EP|EN)",)),
+            "shielding_gas": self._first_match(evidence_text, (r"(CO2|二氧化碳|Ar|氩气|混合气)",)),
+            "gas_flow": self._first_match(evidence_text, (r"(\d+\s*[-~～]\s*\d+\s*L/min)",)),
+        }
+        return {key: value or "/" for key, value in document_fields.items()}
+
+    @staticmethod
+    def _collect_clean_search_text(search_results: dict[str, list[SearchResult]]) -> str:
+        parts = []
+        for results in search_results.values():
+            for result in results:
+                parts.extend([result.title, result.snippet])
+        return "\n".join(part for part in parts if WeldingStandardAgent._is_clean_text(part))
+
+    @staticmethod
+    def _is_clean_text(text: str) -> bool:
+        lowered = text.lower()
+        blocked = ("not found", "unknown tool", "unknown too", "error", "missing")
+        return bool(text.strip()) and not any(item in lowered for item in blocked)
+
+    @staticmethod
+    def _first_match(text: str, patterns: tuple[str, ...]) -> str:
+        for pattern in patterns:
+            match = re.search(pattern, text, flags=re.IGNORECASE)
+            if match:
+                return match.group(1).replace(" ", "")
+        return ""
 
     @staticmethod
     def _draft_standard(
