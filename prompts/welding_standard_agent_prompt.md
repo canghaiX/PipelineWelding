@@ -66,6 +66,8 @@
     "heat_input": "/",
     "filler_metal": "/",
     "filler_diameter": "/",
+    "filler_standard": "/",
+    "filler_category": "/",
     "polarity": "/",
     "shielding_gas": "/",
     "gas_flow": "/"

@@ -56,40 +56,92 @@ class WeldingDocumentAgent:
         document: Document,
         document_fields: dict[str, str],
     ) -> None:
-        replacements: dict[str, str] = {
-            "焊接方法": self._line_value("焊接方法", document_fields.get("welding_process")),
-            "坡口形式": self._line_value("坡口形式", document_fields.get("joint_type")),
-            "类别号": self._base_material_line(document_fields.get("base_material")),
-            "对接焊缝焊件母材厚度范围": self._line_value(
-                "对接焊缝焊件母材厚度范围",
-                document_fields.get("base_thickness_or_diameter"),
-            ),
-            "管子直径、壁厚范围": self._line_value(
-                "管子直径、壁厚范围：对接焊缝",
-                document_fields.get("base_thickness_or_diameter"),
-            ),
-            "最小预热温度": self._line_value("最小预热温度（℃）", document_fields.get("preheat_temperature")),
-            "最大道间温度": self._line_value("最大道间温度（℃）", document_fields.get("interpass_temperature")),
-        }
+        replacements: dict[str, str] = self._paragraph_replacements(document_fields)
 
         for paragraph in document.paragraphs:
-            self._replace_paragraph_by_prefix(paragraph, replacements)
+            self._replace_paragraph_by_keyword(paragraph, replacements)
 
         for table in document.tables:
             for row in table.rows:
                 for cell in row.cells:
                     for paragraph in cell.paragraphs:
-                        self._replace_paragraph_by_prefix(paragraph, replacements)
+                        self._replace_paragraph_by_keyword(paragraph, replacements)
+
+    def _paragraph_replacements(self, document_fields: dict[str, str]) -> dict[str, str]:
+        material = self._value(document_fields, "base_material")
+        size = self._value(document_fields, "base_thickness_or_diameter")
+        return {
+            "焊接方法": self._line_value("焊接方法", self._value(document_fields, "welding_process")),
+            "坡口形式": self._line_value("坡口形式:", self._value(document_fields, "joint_type")),
+            "类别号": f"母材：标准号/材料代号 {material}",
+            "对接焊缝焊件母材厚度范围": self._line_value("对接焊缝焊件母材厚度范围", size),
+            "管子直径、壁厚范围": self._line_value("管子直径、壁厚范围：对接焊缝", size),
+            "最小预热温度": self._line_value("最小预热温度（℃）", self._value(document_fields, "preheat_temperature")),
+            "最大道间温度": self._line_value("最大道间温度（℃）", self._value(document_fields, "interpass_temperature")),
+        }
 
     def _fill_known_tables(
         self,
         document: Document,
         document_fields: dict[str, str],
     ) -> None:
-        for table in document.tables:
+        for index, table in enumerate(document.tables):
+            if index == 0:
+                self._fill_joint_table(table, document_fields)
+            if index == 1:
+                self._fill_filler_metal_table(table, document_fields)
+            if index == 3:
+                self._fill_process_condition_table(table, document_fields)
             self._fill_labeled_table(table, document_fields)
             if self._is_welding_parameter_table(table):
                 self._fill_welding_parameter_table(table, document_fields)
+
+    def _fill_joint_table(self, table: Any, document_fields: dict[str, str]) -> None:
+        if not table.rows or not table.rows[0].cells:
+            return
+        table.rows[0].cells[0].text = (
+            "焊接接头："
+            f"坡口形式:{self._value(document_fields, 'joint_type')}"
+            "衬垫(材料及规格)/"
+            "其他/"
+        )
+
+    def _fill_filler_metal_table(self, table: Any, document_fields: dict[str, str]) -> None:
+        row_values = {
+            "焊材标准": self._value(document_fields, "filler_standard"),
+            "填充金属尺寸": self._value(document_fields, "filler_diameter"),
+            "焊材型号": self._value(document_fields, "filler_metal"),
+            "焊材牌号": self._value(document_fields, "filler_metal"),
+            "填充金属类别": self._value(document_fields, "filler_category"),
+        }
+        for row in table.rows:
+            if len(row.cells) < 2:
+                continue
+            label = row.cells[0].text.strip().replace("：", "")
+            for key, value in row_values.items():
+                if key in label:
+                    row.cells[1].text = value
+                    if len(row.cells) > 2:
+                        row.cells[2].text = "/"
+                    break
+
+    def _fill_process_condition_table(self, table: Any, document_fields: dict[str, str]) -> None:
+        if len(table.rows) < 3:
+            return
+        table.rows[1].cells[0].text = (
+            "预热："
+            f"最小预热温度（℃）{self._value(document_fields, 'preheat_temperature')}"
+            f"最大道间温度（℃）{self._value(document_fields, 'interpass_temperature')}"
+            "保持预热时间/"
+            "加热方式/"
+        )
+        table.rows[1].cells[1].text = (
+            "气体："
+            "气体种类 混合比 流量(L/min)"
+            f"保护气 {self._value(document_fields, 'shielding_gas')} / {self._value(document_fields, 'gas_flow')}"
+            "尾部保护气 / / /"
+            "背面保护气 / / /"
+        )
 
     def _fill_labeled_table(self, table: Any, document_fields: dict[str, str]) -> None:
         label_to_value = {
@@ -116,14 +168,14 @@ class WeldingDocumentAgent:
         table: Any,
         document_fields: dict[str, str],
     ) -> None:
-        welding_process = document_fields.get("welding_process")
-        filler_metal = document_fields.get("filler_metal")
-        filler_diameter = document_fields.get("filler_diameter")
-        polarity = document_fields.get("polarity")
-        current = document_fields.get("current")
-        voltage = document_fields.get("voltage")
-        speed = document_fields.get("welding_speed")
-        heat_input = document_fields.get("heat_input")
+        welding_process = self._value(document_fields, "welding_process")
+        filler_metal = self._value(document_fields, "filler_metal")
+        filler_diameter = self._value(document_fields, "filler_diameter")
+        polarity = self._value(document_fields, "polarity")
+        current = self._value(document_fields, "current")
+        voltage = self._value(document_fields, "voltage")
+        speed = self._value(document_fields, "welding_speed")
+        heat_input = self._value(document_fields, "heat_input")
 
         for row in table.rows:
             cells = row.cells
@@ -199,10 +251,10 @@ class WeldingDocumentAgent:
         return self.config.output_dir / f"{self.config.output_prefix}_{timestamp}.docx"
 
     @staticmethod
-    def _replace_paragraph_by_prefix(paragraph: Paragraph, replacements: dict[str, str]) -> None:
+    def _replace_paragraph_by_keyword(paragraph: Paragraph, replacements: dict[str, str]) -> None:
         text = paragraph.text.strip()
-        for prefix, value in replacements.items():
-            if value and text.startswith(prefix):
+        for keyword, value in replacements.items():
+            if keyword in text:
                 paragraph.text = value
                 return
 
@@ -219,6 +271,10 @@ class WeldingDocumentAgent:
         if not text or any(item in lowered for item in blocked):
             return "/"
         return text
+
+    @staticmethod
+    def _value(document_fields: dict[str, str], key: str) -> str:
+        return WeldingDocumentAgent._clean_value(document_fields.get(key))
 
 
 def build_welding_document_agent(
