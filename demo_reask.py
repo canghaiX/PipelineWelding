@@ -12,6 +12,8 @@ from pipeline_welding.graphs import (  # noqa: E402
     build_welding_reask_graph,
     create_initial_state,
 )
+from pipeline_welding.agents import build_welding_standard_agent_from_config  # noqa: E402
+from pipeline_welding.config import load_yaml_config  # noqa: E402
 
 
 def main() -> None:
@@ -40,10 +42,27 @@ def main() -> None:
         print(state["assistant_message"])
         print()
 
-        if state.get("complete"):
+        if state.get("complete") or state.get("round_count", 0) >= MAX_REASK_ROUNDS:
+            run_welding_standard_agent(state)
             return
 
     return
+
+
+def run_welding_standard_agent(state: dict) -> None:
+    print("正在将当前焊接 JSON 信息传递给标准制定智能体，并执行 MCP 查询...")
+    print()
+
+    config = load_yaml_config(ROOT_DIR / "configs" / "welding_standard_agent_config.yaml")
+    standard_agent = build_welding_standard_agent_from_config(config)
+    standard_agent.build_standard(
+        {
+            "fields": state.get("fields", {}),
+            "reask_complete": state.get("complete", False),
+            "missing_keys": state.get("missing_keys", []),
+            "round_count": state.get("round_count", 0),
+        }
+    )
 
 
 if __name__ == "__main__":

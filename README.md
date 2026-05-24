@@ -42,6 +42,8 @@ PipelineWelding/
 
 对话流程最多支持五轮问答。每轮会把已经满足的信息存入 State，并在下一轮自动带入继续补全。信息完整后会输出 `complete_case` 字典格式；如果五轮后仍不完整，也会输出当前已收集到的 `complete_case`。
 
+在 `demo_reask.py` 中，当前置重问智能体判定信息完整，或五轮问答结束后，程序会自动把当前 State 中的 JSON 字段传递给标准制定智能体，并继续执行 Tavily MCP 查询与标准 JSON 汇总。
+
 ### 必填字段
 
 | 字段 key | 中文名称 | 要求 |
@@ -79,6 +81,24 @@ complete_case = {
     "joint_type": "对接",
     "base_material": "ASTM A106 Gr.B / P-No.1",
     "base_thickness_or_diameter": "OD 219.1 x 8.2 mm",
+}
+
+正在将当前焊接 JSON 信息传递给标准制定智能体，并执行 MCP 查询...
+{
+  "status": "complete",
+  "input": {
+    "welding_process": "GTAW+SMAW",
+    "welding_object": "管道",
+    "joint_type": "对接",
+    "base_material": "ASTM A106 Gr.B / P-No.1",
+    "base_thickness_or_diameter": "OD 219.1 x 8.2 mm"
+  },
+  "mcp_search": {
+    "enabled": true,
+    "queries": [],
+    "results": {}
+  },
+  "pipeline_welding_standard": {}
 }
 ```
 
@@ -134,9 +154,13 @@ python .\demo_standard_agent.py
 代码调用：
 
 ```python
-from pipeline_welding.agents import build_welding_standard_agent
+from pathlib import Path
 
-agent = build_welding_standard_agent()
+from pipeline_welding.agents import build_welding_standard_agent_from_config
+from pipeline_welding.config import load_yaml_config
+
+config = load_yaml_config(Path("configs/welding_standard_agent_config.yaml"))
+agent = build_welding_standard_agent_from_config(config)
 result = agent.build_standard({
     "welding_process": "GTAW+SMAW",
     "welding_object": "管道",
