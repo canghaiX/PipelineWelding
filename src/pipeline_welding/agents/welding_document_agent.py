@@ -31,12 +31,16 @@ class WeldingDocumentAgent:
         document = Document(str(template_path))
 
         document_fields = self._extract_document_fields(standard_result)
+        document_fields = self._ensure_required_document_fields(document_fields)
         self._fill_known_paragraphs(document, document_fields)
         self._fill_known_tables(document, document_fields)
 
         output_path = self._build_output_path()
         document.save(str(output_path))
         print(f"已生成焊接标准文档：{output_path}")
+        print("已写入字段：")
+        for key, value in document_fields.items():
+            print(f"  {key}: {value}")
         return output_path
 
     def _extract_document_fields(self, standard_result: dict[str, Any]) -> dict[str, str]:
@@ -126,16 +130,19 @@ class WeldingDocumentAgent:
                     break
 
     def _fill_process_condition_table(self, table: Any, document_fields: dict[str, str]) -> None:
-        if len(table.rows) < 3:
+        if not table.rows:
             return
-        table.rows[1].cells[0].text = (
+        cells = table.rows[0].cells
+        if len(cells) < 3:
+            return
+        cells[1].text = (
             "预热："
             f"最小预热温度（℃）{self._value(document_fields, 'preheat_temperature')}"
             f"最大道间温度（℃）{self._value(document_fields, 'interpass_temperature')}"
             "保持预热时间/"
             "加热方式/"
         )
-        table.rows[1].cells[1].text = (
+        cells[2].text = (
             "气体："
             "气体种类 混合比 流量(L/min)"
             f"保护气 {self._value(document_fields, 'shielding_gas')} / {self._value(document_fields, 'gas_flow')}"
@@ -262,6 +269,33 @@ class WeldingDocumentAgent:
     def _set_cell_text(cells: Any, index: int, value: str | None) -> None:
         if index < len(cells):
             cells[index].text = WeldingDocumentAgent._clean_value(value)
+
+    @staticmethod
+    def _ensure_required_document_fields(document_fields: dict[str, str]) -> dict[str, str]:
+        required_keys = (
+            "welding_process",
+            "welding_object",
+            "joint_type",
+            "base_material",
+            "base_thickness_or_diameter",
+            "preheat_temperature",
+            "interpass_temperature",
+            "current",
+            "voltage",
+            "welding_speed",
+            "heat_input",
+            "filler_metal",
+            "filler_diameter",
+            "filler_standard",
+            "filler_category",
+            "polarity",
+            "shielding_gas",
+            "gas_flow",
+        )
+        return {
+            key: WeldingDocumentAgent._clean_value(document_fields.get(key))
+            for key in required_keys
+        }
 
     @staticmethod
     def _clean_value(value: Any) -> str:

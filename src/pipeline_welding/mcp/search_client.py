@@ -63,8 +63,9 @@ class McpSearchClient:
         async with stdio_client(server_params) as (read_stream, write_stream):
             async with ClientSession(read_stream, write_stream) as session:
                 await session.initialize()
+                tool_name = await self._resolve_tool_name(session)
                 result = await session.call_tool(
-                    self.config.tool_name,
+                    tool_name,
                     arguments={"query": query, "max_results": self.config.max_results},
                 )
                 return self._parse_tool_result(result)
@@ -83,11 +84,34 @@ class McpSearchClient:
         ):
             async with ClientSession(read_stream, write_stream) as session:
                 await session.initialize()
+                tool_name = await self._resolve_tool_name(session)
                 result = await session.call_tool(
-                    self.config.tool_name,
+                    tool_name,
                     arguments={"query": query, "max_results": self.config.max_results},
                 )
                 return self._parse_tool_result(result)
+
+    async def _resolve_tool_name(self, session: Any) -> str:
+        try:
+            tools_result = await session.list_tools()
+        except Exception:
+            return self.config.tool_name
+
+        tools = getattr(tools_result, "tools", []) or []
+        tool_names = [getattr(tool, "name", "") for tool in tools]
+        if self.config.tool_name in tool_names:
+            return self.config.tool_name
+
+        normalized_config_name = self.config.tool_name.replace("-", "_")
+        for name in tool_names:
+            if name.replace("-", "_") == normalized_config_name:
+                return name
+
+        for name in tool_names:
+            if "search" in name.lower():
+                return name
+
+        return self.config.tool_name
 
     @staticmethod
     def _parse_tool_result(result: Any) -> list[SearchResult]:

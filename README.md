@@ -183,7 +183,7 @@ result = agent.build_standard({
 mcp_search:
   enabled: true
   transport: streamable_http
-  tool_name: tavily-search
+  tool_name: tavily_search
   command: ""
   args: []
   url: https://mcp.tavily.com/mcp/?tavilyApiKey=${TAVILY_API_KEY}

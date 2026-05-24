@@ -102,13 +102,11 @@ class WeldingStandardAgent:
         size = fields.get("base_thickness_or_diameter", "")
         joint_type = fields.get("joint_type", "")
         welding_object = fields.get("welding_object", "")
-        wps_terms = self._compact_reference_for_query(reference_text)
-
         base_terms = " ".join(term for term in (process, material, size, joint_type, welding_object) if term)
         return [
-            f"{base_terms} WPS 焊接方法 接头形式 母材 厚度 管径 {wps_terms}",
-            f"{process} {material} {joint_type} 焊接参数 电流 电压 焊接速度 线能量 焊材 {wps_terms}",
-            f"{material} {size} 管道焊接 预热温度 层间温度 填充金属 保护气 {wps_terms}",
+            f"{base_terms} WPS 焊接工艺参数",
+            f"{process} {material} {joint_type} 电流 电压 焊接速度 线能量 焊材",
+            f"{material} {size} 管道焊接 预热温度 层间温度 保护气",
         ]
 
     def _compact_reference_for_query(self, reference_text: str) -> str:
@@ -185,7 +183,7 @@ class WeldingStandardAgent:
             result.title
             for results in search_results.values()
             for result in results
-            if result.title
+            if WeldingStandardAgent._is_clean_text(result.title)
         ]
         return {
             "standard_name": "管道焊接工艺标准草案",
