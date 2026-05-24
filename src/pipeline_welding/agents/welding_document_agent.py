@@ -60,6 +60,7 @@ class WeldingDocumentAgent:
         document_fields: dict[str, str],
     ) -> None:
         paragraphs = self._iter_all_paragraphs(document)
+        self._fill_first_label(paragraphs, "单位名称", document_fields, "unit_name")
         self._fill_first_label(paragraphs, "预焊接工艺规程编号", document_fields, "wps_no")
         self._fill_first_label(paragraphs, "所支持的焊接工艺评定编号", document_fields, "pqr_no")
         self._fill_first_label(paragraphs, "焊接方法", document_fields, "welding_process")
@@ -81,8 +82,12 @@ class WeldingDocumentAgent:
             "角焊缝",
             self._value(document_fields, "pipe_diameter_thickness_fillet"),
         )
+        self._fill_first_label(paragraphs, "对接焊缝焊件焊缝金属厚度范围", document_fields, "base_thickness_range_butt")
+        self._fill_first_label(paragraphs, "角焊缝焊件焊缝金属厚度范围", document_fields, "base_thickness_range_fillet")
+        self._fill_label_after(paragraphs, "其他：", self._value(document_fields, "corrosion_overlay_other"))
         self._fill_electrical_paragraphs(paragraphs, document_fields)
         self._fill_technical_paragraphs(paragraphs, document_fields)
+        self._fill_signature_paragraphs(paragraphs, document_fields)
 
     def _fill_known_tables(
         self,
@@ -135,13 +140,13 @@ class WeldingDocumentAgent:
             return
         self._fill_label_after(cells[0].paragraphs, "对接焊缝的位置", self._value(document_fields, "butt_weld_position"))
         self._fill_label_after(cells[0].paragraphs, "立焊的焊接方向：（向上、向下）", self._value(document_fields, "vertical_direction"))
-        self._fill_label_after(cells[0].paragraphs, "角焊缝位置", "/")
+        self._fill_label_after(cells[0].paragraphs, "角焊缝位置", self._value(document_fields, "fillet_weld_position"))
         self._fill_label_after(cells[0].paragraphs, "保温温度（℃）", self._value(document_fields, "pwht_temperature"))
         self._fill_label_after(cells[0].paragraphs, "保温时间范围（h）", self._value(document_fields, "pwht_time"))
         self._fill_label_after(cells[1].paragraphs, "最小预热温度（℃）", self._value(document_fields, "preheat_temperature"))
         self._fill_label_after(cells[1].paragraphs, "最大道间温度（℃）", self._value(document_fields, "interpass_temperature"))
-        self._fill_label_after(cells[1].paragraphs, "保持预热时间", "/")
-        self._fill_label_after(cells[1].paragraphs, "加热方式", "/")
+        self._fill_label_after(cells[1].paragraphs, "保持预热时间", self._value(document_fields, "preheat_time"))
+        self._fill_label_after(cells[1].paragraphs, "加热方式", self._value(document_fields, "heating_method"))
         self._fill_gas_cell(cells[2], document_fields)
 
     @staticmethod
@@ -245,7 +250,7 @@ class WeldingDocumentAgent:
         document_fields: dict[str, str],
     ) -> None:
         self._fill_label_after(paragraphs, "摆动焊或不摆动焊", self._value(document_fields, "weaving"))
-        self._fill_label_after(paragraphs, "摆动参数", "/")
+        self._fill_label_after(paragraphs, "摆动参数", self._value(document_fields, "weaving_parameter"))
         self._fill_label_after(paragraphs, "焊前清理和层间清理", self._value(document_fields, "cleaning"))
         self._fill_label_after(paragraphs, "背面清根方法", self._value(document_fields, "back_gouging"))
         self._fill_label_after(paragraphs, "单道焊或多道焊（每面）", self._value(document_fields, "single_or_multi_pass"))
@@ -253,6 +258,15 @@ class WeldingDocumentAgent:
         self._fill_label_after(paragraphs, "导电嘴至工件距离（mm）", self._value(document_fields, "contact_tip_distance"))
         self._fill_label_after(paragraphs, "锤击", self._value(document_fields, "peening"))
         self._fill_label_after(paragraphs, "其他：", self._value(document_fields, "technical_other"))
+
+    def _fill_signature_paragraphs(
+        self,
+        paragraphs: Any,
+        document_fields: dict[str, str],
+    ) -> None:
+        self._fill_label_after(paragraphs, "编制", self._value(document_fields, "prepared_by"))
+        self._fill_label_after(paragraphs, "审核", self._value(document_fields, "reviewed_by"))
+        self._fill_label_after(paragraphs, "批准", self._value(document_fields, "approved_by"))
 
     def _fill_electrical_paragraphs(
         self,
@@ -357,6 +371,7 @@ class WeldingDocumentAgent:
     @staticmethod
     def _ensure_required_document_fields(document_fields: dict[str, str]) -> dict[str, str]:
         required_keys = (
+            "unit_name",
             "welding_process",
             "welding_object",
             "joint_type",
@@ -376,8 +391,11 @@ class WeldingDocumentAgent:
             "base_thickness_range_fillet",
             "pipe_diameter_thickness_butt",
             "pipe_diameter_thickness_fillet",
+            "corrosion_overlay_chemical_composition",
+            "corrosion_overlay_other",
             "preheat_temperature",
             "interpass_temperature",
+            "fillet_weld_position",
             "current",
             "voltage",
             "welding_speed",
@@ -399,12 +417,15 @@ class WeldingDocumentAgent:
             "gas_flow",
             "trailing_gas",
             "backing_gas",
+            "preheat_time",
+            "heating_method",
             "current_type",
             "tungsten_electrode",
             "nozzle_diameter",
             "arc_type",
             "wire_feed_speed",
             "weaving",
+            "weaving_parameter",
             "cleaning",
             "back_gouging",
             "single_or_multi_pass",
@@ -412,6 +433,12 @@ class WeldingDocumentAgent:
             "contact_tip_distance",
             "peening",
             "technical_other",
+            "prepared_by",
+            "prepared_date",
+            "reviewed_by",
+            "reviewed_date",
+            "approved_by",
+            "approved_date",
             "bead_1_process",
             "bead_1_filler_metal",
             "bead_1_diameter",

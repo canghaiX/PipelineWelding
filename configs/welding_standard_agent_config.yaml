@@ -19,6 +19,7 @@ llm:
 generation:
   use_industry_defaults: true
   bead_strategy: root_gtaw_fill_smaw
+  reference_fill_mode: aggressive_reference
   default_unknown: "/"
 
 mcp_search:

@@ -24,6 +24,7 @@ STANDARD_FIELDS = (
 )
 
 DOCUMENT_FIELD_KEYS = (
+    "unit_name",
     "wps_no",
     "pqr_no",
     "welding_process",
@@ -43,8 +44,11 @@ DOCUMENT_FIELD_KEYS = (
     "base_thickness_range_fillet",
     "pipe_diameter_thickness_butt",
     "pipe_diameter_thickness_fillet",
+    "corrosion_overlay_chemical_composition",
+    "corrosion_overlay_other",
     "preheat_temperature",
     "interpass_temperature",
+    "fillet_weld_position",
     "current",
     "voltage",
     "welding_speed",
@@ -66,12 +70,15 @@ DOCUMENT_FIELD_KEYS = (
     "gas_flow",
     "trailing_gas",
     "backing_gas",
+    "preheat_time",
+    "heating_method",
     "current_type",
     "tungsten_electrode",
     "nozzle_diameter",
     "arc_type",
     "wire_feed_speed",
     "weaving",
+    "weaving_parameter",
     "cleaning",
     "back_gouging",
     "single_or_multi_pass",
@@ -79,6 +86,12 @@ DOCUMENT_FIELD_KEYS = (
     "contact_tip_distance",
     "peening",
     "technical_other",
+    "prepared_by",
+    "prepared_date",
+    "reviewed_by",
+    "reviewed_date",
+    "approved_by",
+    "approved_date",
     "bead_1_process",
     "bead_1_filler_metal",
     "bead_1_diameter",
@@ -111,6 +124,7 @@ class WeldingStandardAgentConfig:
     use_industry_defaults: bool = True
     bead_strategy: str = "root_gtaw_fill_smaw"
     default_unknown: str = "/"
+    reference_fill_mode: str = "aggressive_reference"
 
 
 class WeldingStandardAgent:
@@ -230,8 +244,11 @@ class WeldingStandardAgent:
             "base_thickness_range_fillet": "/",
             "pipe_diameter_thickness_butt": fields.get("base_thickness_or_diameter", ""),
             "pipe_diameter_thickness_fillet": "/",
+            "corrosion_overlay_chemical_composition": "/",
+            "corrosion_overlay_other": "/",
             "preheat_temperature": self._first_match(evidence_text, (r"预热温度[^\d≥≤]*([≥≤]?\s*\d+\s*℃?)",)),
             "interpass_temperature": self._first_match(evidence_text, (r"层间温度[^\d≥≤]*([≥≤]?\s*\d+\s*℃?)", r"道间温度[^\d≥≤]*([≥≤]?\s*\d+\s*℃?)")),
+            "fillet_weld_position": "/",
             "current": self._first_match(evidence_text, (r"电流[^\d]*(\d+\s*[-~～]\s*\d+\s*A?)",)),
             "voltage": self._first_match(evidence_text, (r"电压[^\d]*(\d+\s*[-~～]\s*\d+\s*V?)",)),
             "welding_speed": self._first_match(evidence_text, (r"焊接速度[^\d]*(\d+\s*[-~～]\s*\d+\s*(?:mm/min)?)",)),
@@ -253,12 +270,15 @@ class WeldingStandardAgent:
             "gas_flow": self._first_match(evidence_text, (r"(\d+\s*[-~～]\s*\d+\s*L/min)",)),
             "trailing_gas": "/",
             "backing_gas": "/",
+            "preheat_time": "/",
+            "heating_method": "/",
             "current_type": self._first_match(evidence_text, (r"(AC|DC|直流|交流)",)),
             "tungsten_electrode": self._first_match(evidence_text, (r"(?:钨极)[^\n:：]*[:：]?\s*([A-Za-z0-9#./+\-\u4e00-\u9fff]+)",)),
             "nozzle_diameter": self._first_match(evidence_text, (r"(?:喷嘴)[^\d]*(\d+(?:\.\d+)?\s*mm)",)),
             "arc_type": self._first_match(evidence_text, (r"(短路弧|喷射弧|脉冲弧|globular|spray|short circuit)",)),
             "wire_feed_speed": "/",
             "weaving": self._first_match(evidence_text, (r"(摆动焊|不摆动焊)",)),
+            "weaving_parameter": "/",
             "cleaning": self._first_match(evidence_text, (r"(?:清理|clean)[^\n。；;]*",)),
             "back_gouging": "/",
             "single_or_multi_pass": self._first_match(evidence_text, (r"(单道焊|多道焊|single pass|multi pass)",)),
@@ -266,6 +286,12 @@ class WeldingStandardAgent:
             "contact_tip_distance": self._first_match(evidence_text, (r"(\d+\s*[-~～]\s*\d+\s*mm)",)),
             "peening": "/",
             "technical_other": "/",
+            "prepared_by": "/",
+            "prepared_date": "/",
+            "reviewed_by": "/",
+            "reviewed_date": "/",
+            "approved_by": "/",
+            "approved_date": "/",
         }
         self._add_welding_bead_fields(document_fields)
         return {key: self._clean_document_value(value) for key, value in document_fields.items()}
@@ -452,61 +478,73 @@ class WeldingStandardAgent:
         size = document_fields.get("base_thickness_or_diameter", "")
 
         if "ASTM A106" in material.upper() or "A106" in material.upper():
-            self._fill_default(document_fields, "base_material_category", "P-No.1")
-            self._fill_default(document_fields, "base_material_group", "Group 1")
-            self._fill_default(document_fields, "base_material_standard", "ASTM A106")
-            self._fill_default(document_fields, "base_material_grade", "ASTM A106 Gr.B")
+            self._fill_reference(document_fields, "base_material_category", "P-No.1")
+            self._fill_reference(document_fields, "base_material_group", "Group 1")
+            self._fill_reference(document_fields, "base_material_standard", "ASTM A106")
+            self._fill_reference(document_fields, "base_material_grade", "ASTM A106 Gr.B")
         if "P-NO.1" in material.upper() or "P-NO. 1" in material.upper():
-            self._fill_default(document_fields, "base_material_category", "P-No.1")
+            self._fill_reference(document_fields, "base_material_category", "P-No.1")
 
         if "对接" in document_fields.get("joint_type", ""):
-            self._fill_default(document_fields, "groove_type", "V形坡口")
-        self._fill_default(document_fields, "backing", "无")
+            self._fill_reference(document_fields, "groove_type", "V形坡口")
+        self._fill_reference(document_fields, "backing", "无")
         self._fill_default(document_fields, "joint_other", "/")
-        self._fill_default(document_fields, "base_thickness_range_butt", size)
-        self._fill_default(document_fields, "pipe_diameter_thickness_butt", size)
+        self._fill_reference(document_fields, "base_thickness_range_butt", size)
+        self._fill_reference(document_fields, "pipe_diameter_thickness_butt", size)
         self._fill_default(document_fields, "base_thickness_range_fillet", "/")
         self._fill_default(document_fields, "pipe_diameter_thickness_fillet", "/")
+        self._fill_default(document_fields, "corrosion_overlay_chemical_composition", "/")
+        self._fill_default(document_fields, "corrosion_overlay_other", "/")
 
         if "GTAW" in process:
-            self._fill_default(document_fields, "shielding_gas", "Ar")
-            self._fill_default(document_fields, "shielding_gas_mix", "99.99%")
-            self._fill_default(document_fields, "gas_flow", "8-15 L/min")
-            self._fill_default(document_fields, "backing_gas", "Ar")
+            self._fill_reference(document_fields, "shielding_gas", "Ar")
+            self._fill_reference(document_fields, "shielding_gas_mix", "99.99%")
+            self._fill_reference(document_fields, "gas_flow", "8-15 L/min")
+            self._fill_reference(document_fields, "backing_gas", "Ar")
             self._fill_default(document_fields, "trailing_gas", "/")
-            self._fill_default(document_fields, "tungsten_electrode", "铈钨 2.4 mm")
-            self._fill_default(document_fields, "nozzle_diameter", "8-12 mm")
-            self._fill_default(document_fields, "current_type", "DC")
+            self._fill_reference(document_fields, "tungsten_electrode", "铈钨 2.4 mm")
+            self._fill_reference(document_fields, "nozzle_diameter", "8-12 mm")
+            self._fill_reference(document_fields, "current_type", "DC")
 
         if "SMAW" in process:
-            self._fill_default(document_fields, "filler_category", "焊丝/焊条")
-            self._fill_default(document_fields, "filler_standard", "AWS A5.18 / AWS A5.1")
-            self._fill_default(document_fields, "filler_diameter", "2.4 mm / 3.2 mm")
-            self._fill_default(document_fields, "filler_model", "ER70S-6 / E7016")
-            self._fill_default(document_fields, "filler_trade_name", "ER70S-6 / E7016")
+            self._fill_reference(document_fields, "filler_category", "焊丝/焊条")
+            self._fill_reference(document_fields, "filler_standard", "AWS A5.18 / AWS A5.1")
+            self._fill_reference(document_fields, "filler_diameter", "2.4 mm / 3.2 mm")
+            self._fill_reference(document_fields, "filler_model", "ER70S-6 / E7016")
+            self._fill_reference(document_fields, "filler_trade_name", "ER70S-6 / E7016")
 
-        self._fill_default(document_fields, "butt_weld_position", "5G")
-        self._fill_default(document_fields, "vertical_direction", "向上")
+        self._fill_reference(document_fields, "butt_weld_position", "5G")
+        self._fill_default(document_fields, "fillet_weld_position", "/")
+        self._fill_reference(document_fields, "vertical_direction", "向上")
         self._fill_default(document_fields, "pwht_temperature", "/")
         self._fill_default(document_fields, "pwht_time", "/")
-        self._fill_default(document_fields, "preheat_temperature", "≥10℃")
-        self._fill_default(document_fields, "interpass_temperature", "≤250℃")
-        self._fill_default(document_fields, "current_type", "DC")
-        self._fill_default(document_fields, "polarity", "EN/EP")
-        self._fill_default(document_fields, "current", "GTAW 80-130A / SMAW 90-130A")
-        self._fill_default(document_fields, "voltage", "GTAW 10-16V / SMAW 22-28V")
-        self._fill_default(document_fields, "welding_speed", "50-160 mm/min")
+        self._fill_reference(document_fields, "preheat_temperature", "≥10℃")
+        self._fill_reference(document_fields, "interpass_temperature", "≤250℃")
+        self._fill_default(document_fields, "preheat_time", "/")
+        self._fill_reference(document_fields, "heating_method", "电加热/火焰加热")
+        self._fill_reference(document_fields, "current_type", "DC")
+        self._fill_reference(document_fields, "polarity", "EN/EP")
+        self._fill_reference(document_fields, "current", "GTAW 80-130A / SMAW 90-130A")
+        self._fill_reference(document_fields, "voltage", "GTAW 10-16V / SMAW 22-28V")
+        self._fill_reference(document_fields, "welding_speed", "50-160 mm/min")
         self._fill_default(document_fields, "heat_input", "/")
         self._fill_default(document_fields, "arc_type", "/")
         self._fill_default(document_fields, "wire_feed_speed", "/")
-        self._fill_default(document_fields, "weaving", "GTAW不摆动，SMAW可摆动")
-        self._fill_default(document_fields, "cleaning", "焊前及层间清理至金属光泽")
+        self._fill_reference(document_fields, "weaving", "GTAW不摆动，SMAW可摆动")
+        self._fill_default(document_fields, "weaving_parameter", "/")
+        self._fill_reference(document_fields, "cleaning", "焊前及层间清理至金属光泽")
         self._fill_default(document_fields, "back_gouging", "/")
-        self._fill_default(document_fields, "single_or_multi_pass", "多道焊")
-        self._fill_default(document_fields, "single_or_multi_wire", "单丝/单焊条")
+        self._fill_reference(document_fields, "single_or_multi_pass", "多道焊")
+        self._fill_reference(document_fields, "single_or_multi_wire", "单丝/单焊条")
         self._fill_default(document_fields, "contact_tip_distance", "/")
-        self._fill_default(document_fields, "peening", "否")
+        self._fill_reference(document_fields, "peening", "否")
         self._fill_default(document_fields, "technical_other", "/")
+        self._fill_default(document_fields, "prepared_by", "/")
+        self._fill_default(document_fields, "prepared_date", "/")
+        self._fill_default(document_fields, "reviewed_by", "/")
+        self._fill_default(document_fields, "reviewed_date", "/")
+        self._fill_default(document_fields, "approved_by", "/")
+        self._fill_default(document_fields, "approved_date", "/")
 
         if self.config.bead_strategy == "root_gtaw_fill_smaw" and "GTAW" in process and "SMAW" in process:
             self._apply_gtaw_smaw_bead_defaults(document_fields)
@@ -515,6 +553,36 @@ class WeldingStandardAgent:
     def _fill_default(document_fields: dict[str, str], key: str, value: str) -> None:
         if WeldingStandardAgent._clean_document_value(document_fields.get(key)) == "/":
             document_fields[key] = value
+
+    def _fill_reference(self, document_fields: dict[str, str], key: str, value: str) -> None:
+        if self._should_replace_with_reference(document_fields.get(key), value):
+            document_fields[key] = value
+
+    def _should_replace_with_reference(self, current_value: Any, reference_value: str) -> bool:
+        current = self._clean_document_value(current_value)
+        if current == "/":
+            return True
+        if self.config.reference_fill_mode != "aggressive_reference":
+            return False
+        normalized = current.upper().replace(" ", "")
+        reference_normalized = reference_value.upper().replace(" ", "")
+        low_quality_values = {
+            "GTAW+SMAW",
+            "SMAW+GTAW",
+            "AWSA5",
+            "AWSA5.",
+            "EN",
+            "EP",
+            "AR",
+            "DC",
+        }
+        if normalized in low_quality_values and normalized != reference_normalized:
+            return True
+        if "+" in current and "/" in reference_value:
+            return True
+        if len(current) <= 2 and len(reference_value) > len(current):
+            return True
+        return False
 
     @staticmethod
     def _apply_gtaw_smaw_bead_defaults(document_fields: dict[str, str]) -> None:
@@ -537,7 +605,8 @@ class WeldingStandardAgent:
             "bead_2_heat_input": "/",
         }
         for key, value in bead_defaults.items():
-            if WeldingStandardAgent._clean_document_value(document_fields.get(key)) == "/":
+            current = WeldingStandardAgent._clean_document_value(document_fields.get(key))
+            if current == "/" or current.upper().replace(" ", "") in {"GTAW+SMAW", "SMAW+GTAW"}:
                 document_fields[key] = value
 
     @staticmethod
@@ -628,6 +697,7 @@ def build_welding_standard_agent_from_config(config: dict[str, Any]) -> WeldingS
         use_industry_defaults=bool(config.get("generation", {}).get("use_industry_defaults", True)),
         bead_strategy=str(config.get("generation", {}).get("bead_strategy", "root_gtaw_fill_smaw")),
         default_unknown=str(config.get("generation", {}).get("default_unknown", "/")),
+        reference_fill_mode=str(config.get("generation", {}).get("reference_fill_mode", "aggressive_reference")),
     )
     search_client = None
     if mcp_config.get("enabled"):
