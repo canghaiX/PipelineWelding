@@ -46,7 +46,7 @@ PipelineWelding/
 
 对话流程最多支持五轮问答。每轮会把已经满足的信息存入 State，并在下一轮自动带入继续补全。信息完整后会输出 `complete_case` 字典格式；如果五轮后仍不完整，也会输出当前已收集到的 `complete_case`。
 
-在 `demo_reask.py` 中，当前置重问智能体判定信息完整，或五轮问答结束后，程序会自动把当前 State 中的 JSON 字段传递给标准制定智能体，并继续执行 Tavily MCP 查询与标准 JSON 汇总。随后会把标准制定智能体返回的 JSON 传递给文档生成智能体，按照 `data/MHPWPS-062.docx` 的文本格式填充可识别字段，并输出 `.docx` 到 `result/`。
+在 `demo_reask.py` 中，当前置重问智能体判定信息完整，或五轮问答结束后，程序会自动把当前 State 中的 JSON 字段传递给标准制定智能体，并继续执行 Tavily MCP 查询与标准 JSON 汇总。随后会把标准制定智能体返回的 JSON 传递给文档生成智能体，按照 `data/MHPWPS-062.docx` 的表格和段落字段一一对应填充可识别信息，并输出 `.docx` 到 `result/`。
 
 ### 必填字段
 
@@ -199,7 +199,7 @@ TAVILY_SEARCH_DEPTH=basic
 
 ## 焊接标准文档生成智能体
 
-文档生成智能体接收 `welding_standard_agent` 返回的 JSON，读取 [data/MHPWPS-062.docx](data/MHPWPS-062.docx) 作为模板，填充能明确映射的信息，并在文档末尾追加智能体汇总、MCP 搜索依据和标准 JSON。
+文档生成智能体接收 `welding_standard_agent` 返回的 JSON，读取 [data/MHPWPS-062.docx](data/MHPWPS-062.docx) 作为模板，保留原有表头和表格结构，只填充能明确映射的信息。MCP 搜索结果只作为字段参考，不会直接追加到文档末尾，也会过滤 `Not found`、`Unknown tool`、`Unknown too` 等错误内容。
 
 单独演示：
 
