@@ -7,6 +7,12 @@ import re
 from typing import Any
 
 from docx import Document
+from docx.enum.section import WD_SECTION
+from docx.enum.table import WD_ALIGN_VERTICAL, WD_ROW_HEIGHT_RULE, WD_TABLE_ALIGNMENT
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Inches, Pt
 
 CLEANING_DEFAULT = "焊前及层间清理至金属光泽，去除油污、铁锈、氧化皮和飞溅物"
 ENGLISH_TEMPLATE_MARKERS = (
@@ -23,6 +29,23 @@ ENGLISH_TEMPLATE_MARKERS = (
     "preheatmaintenance",
     "weldingprogression",
     "ampsandvolts",
+)
+
+
+@dataclass(frozen=True)
+class LayoutProfile:
+    name: str
+    title_size: float
+    body_size: float
+    table_size: float
+    row_height: float
+    cell_margin: int
+
+
+LAYOUT_PROFILES = (
+    LayoutProfile("normal", title_size=20.0, body_size=11.0, table_size=9.0, row_height=18.0, cell_margin=45),
+    LayoutProfile("compact", title_size=19.0, body_size=10.0, table_size=8.5, row_height=16.5, cell_margin=35),
+    LayoutProfile("tight", title_size=18.0, body_size=9.0, table_size=8.0, row_height=15.0, cell_margin=25),
 )
 
 
@@ -51,10 +74,12 @@ class WeldingDocumentAgent:
         document_fields = self._ensure_required_document_fields(document_fields)
         self._fill_known_paragraphs(document, document_fields)
         self._fill_known_tables(document, document_fields)
+        profile, pressure_score = self._polish_layout(document)
 
         output_path = self._build_output_path()
         document.save(str(output_path))
         print(f"已生成焊接标准文档：{output_path}")
+        print(f"排版档位：{profile.name}（压力分数：{pressure_score:.1f}）")
         print("已写入字段：")
         for key, value in document_fields.items():
             print(f"  {key}: {value}")
@@ -145,9 +170,9 @@ class WeldingDocumentAgent:
             label = row.cells[0].text.strip().replace("：", "")
             for key, value in row_values.items():
                 if key in label:
-                    row.cells[1].text = value
+                    self._set_cell_value(row.cells[1], value)
                     if len(row.cells) > 2:
-                        row.cells[2].text = "/"
+                        self._set_cell_value(row.cells[2], "/")
                     break
 
     def _fill_process_condition_table(self, table: Any, document_fields: dict[str, str]) -> None:
@@ -370,29 +395,119 @@ class WeldingDocumentAgent:
     def _write_after_keyword(paragraph: Any, keyword: str, value: str) -> None:
         clean_value = WeldingDocumentAgent._clean_value(value)
         saw_keyword = False
-        for run in paragraph.runs:
+        for index, run in enumerate(paragraph.runs):
             text = run.text or ""
-            if saw_keyword and (not text.strip() or text.strip() == "/"):
-                run.text = clean_value
+            if saw_keyword and WeldingDocumentAgent._is_placeholder_run(run):
+                if (run.text or "").strip() in {":", "："}:
+                    continue
+                WeldingDocumentAgent._write_value_to_run(run, clean_value)
                 return
             if keyword in text:
                 saw_keyword = True
-                suffix = text.split(keyword, 1)[1].strip()
-                if suffix and suffix != "/" and len(suffix) <= 18:
-                    run.text = text.split(keyword, 1)[0] + keyword + clean_value
+                prefix = text.split(keyword, 1)[0] + keyword
+                suffix = text.split(keyword, 1)[1]
+                if WeldingDocumentAgent._is_placeholder_text(suffix):
+                    run.text = prefix
+                    target = WeldingDocumentAgent._next_placeholder_run(paragraph.runs[index + 1 :])
+                    if target is not None:
+                        WeldingDocumentAgent._write_value_to_run(target, clean_value)
+                    else:
+                        inserted = paragraph.add_run(clean_value)
+                        WeldingDocumentAgent._copy_run_style(run, inserted)
+                        inserted.underline = True
                     return
-                if suffix and suffix != "/":
-                    continue
+                if suffix.strip() and len(suffix.strip()) <= 24:
+                    run.text = f"{prefix}{clean_value}"
+                    run.underline = True
+                    return
 
         if paragraph.runs:
-            paragraph.runs[-1].text = f"{paragraph.runs[-1].text}{clean_value}"
+            target = WeldingDocumentAgent._next_placeholder_run(reversed(paragraph.runs))
+            if target is not None:
+                WeldingDocumentAgent._write_value_to_run(target, clean_value)
+                return
+            inserted = paragraph.add_run(clean_value)
+            WeldingDocumentAgent._copy_run_style(paragraph.runs[-1], inserted)
+            inserted.underline = True
         else:
-            paragraph.add_run(clean_value)
+            paragraph.add_run(clean_value).underline = True
+
+    @staticmethod
+    def _next_placeholder_run(runs: Any) -> Any | None:
+        fallback = None
+        for run in runs:
+            if WeldingDocumentAgent._is_placeholder_run(run):
+                if (run.text or "").strip() in {":", "："}:
+                    fallback = fallback or run
+                    continue
+                return run
+        return fallback
+
+    @staticmethod
+    def _is_placeholder_run(run: Any) -> bool:
+        return bool(run.underline) and WeldingDocumentAgent._is_placeholder_text(run.text or "")
+
+    @staticmethod
+    def _is_placeholder_text(text: str) -> bool:
+        stripped = text.strip()
+        return not stripped or stripped in {"/", ":", "："}
+
+    @staticmethod
+    def _write_value_to_run(run: Any, value: str) -> None:
+        display_value = f" {value}"
+        original_len = max(len(run.text or ""), len(display_value) + 1)
+        run.text = display_value + " " * max(original_len - len(display_value), 0)
+        run.underline = True
+
+    @staticmethod
+    def _copy_run_style(source: Any, target: Any) -> None:
+        target.bold = source.bold
+        target.italic = source.italic
+        target.underline = source.underline
+        target.font.name = source.font.name
+        target.font.size = source.font.size
 
     @staticmethod
     def _set_cell_text(cells: Any, index: int, value: str | None) -> None:
         if index < len(cells):
-            cells[index].text = WeldingDocumentAgent._clean_value(value)
+            WeldingDocumentAgent._set_cell_value(cells[index], value)
+
+    @staticmethod
+    def _set_cell_value(cell: Any, value: str | None) -> None:
+        clean_value = WeldingDocumentAgent._compact_table_value(
+            WeldingDocumentAgent._clean_value(value)
+        )
+        paragraphs = list(cell.paragraphs)
+        if not paragraphs:
+            cell.text = clean_value
+            paragraphs = list(cell.paragraphs)
+
+        for index, paragraph in enumerate(paragraphs):
+            if index == 0:
+                if paragraph.runs:
+                    paragraph.runs[0].text = clean_value
+                    for run in paragraph.runs[1:]:
+                        run.text = ""
+                else:
+                    paragraph.add_run(clean_value)
+            else:
+                for run in paragraph.runs:
+                    run.text = ""
+            WeldingDocumentAgent._format_paragraph(
+                paragraph,
+                font_size=9.0,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
+        cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+
+    @staticmethod
+    def _compact_table_value(value: str) -> str:
+        text = re.sub(r"\s+", " ", value).strip()
+        for process in ("GTAW", "SMAW", "GMAW", "FCAW", "SAW"):
+            prefix = f"{process} "
+            if text.upper().startswith(prefix):
+                return text[len(prefix):].strip() or text
+        return text
 
     @staticmethod
     def _ensure_required_document_fields(document_fields: dict[str, str]) -> dict[str, str]:
@@ -530,6 +645,188 @@ class WeldingDocumentAgent:
         if not text or any(item in lowered for item in blocked):
             return "/"
         return text
+
+    def _polish_layout(self, document: Document) -> tuple[LayoutProfile, float]:
+        self._compact_sections(document)
+        self._remove_trailing_empty_paragraphs(document)
+        pressure_score = self._estimate_layout_pressure(document)
+        profile = self._select_layout_profile(pressure_score)
+        self._format_all_paragraphs(document, profile)
+        self._format_all_tables(document, profile)
+        return profile, pressure_score
+
+    def _estimate_layout_pressure(self, document: Document) -> float:
+        body_paragraphs = [paragraph for paragraph in document.paragraphs if paragraph.text.strip()]
+        body_chars = sum(len(paragraph.text.strip()) for paragraph in body_paragraphs)
+        long_body_fields = sum(max(len(paragraph.text.strip()) - 52, 0) for paragraph in body_paragraphs)
+
+        table_rows = 0
+        table_chars = 0
+        wrapped_cell_lines = 0
+        long_cells = 0
+        for table in document.tables:
+            table_rows += len(table.rows)
+            for row in table.rows:
+                for cell in self._unique_row_cells(row):
+                    text = re.sub(r"\s+", " ", cell.text).strip()
+                    table_chars += len(text)
+                    line_count = self._estimate_cell_line_count(cell, text)
+                    wrapped_cell_lines += max(line_count - 1, 0)
+                    if line_count > 1:
+                        long_cells += 1
+
+        return (
+            len(body_paragraphs) * 2.0
+            + body_chars * 0.22
+            + long_body_fields * 0.7
+            + table_rows * 4.0
+            + table_chars * 0.10
+            + wrapped_cell_lines * 7.0
+            + long_cells * 2.0
+        )
+
+    @staticmethod
+    def _select_layout_profile(pressure_score: float) -> LayoutProfile:
+        if pressure_score < 650:
+            return LAYOUT_PROFILES[0]
+        if pressure_score < 850:
+            return LAYOUT_PROFILES[1]
+        return LAYOUT_PROFILES[2]
+
+    @staticmethod
+    def _compact_sections(document: Document) -> None:
+        for section in document.sections:
+            section.start_type = WD_SECTION.CONTINUOUS
+            section.top_margin = Inches(0.45)
+            section.bottom_margin = Inches(0.38)
+            section.left_margin = Inches(0.58)
+            section.right_margin = Inches(0.45)
+            section.header_distance = Inches(0.28)
+            section.footer_distance = Inches(0.25)
+
+    @staticmethod
+    def _remove_trailing_empty_paragraphs(document: Document) -> None:
+        body = document._body._element
+        children = list(body)
+        sect_pr = children[-1] if children and children[-1].tag == qn("w:sectPr") else None
+        scan_children = children[:-1] if sect_pr is not None else children
+        for child in reversed(scan_children):
+            if child.tag != qn("w:p"):
+                break
+            paragraph_text = "".join(node.text or "" for node in child.iter(qn("w:t"))).strip()
+            if paragraph_text:
+                break
+            body.remove(child)
+
+    def _format_all_paragraphs(self, document: Document, profile: LayoutProfile) -> None:
+        for index, paragraph in enumerate(document.paragraphs):
+            size = profile.title_size if index == 0 else profile.body_size
+            align = WD_ALIGN_PARAGRAPH.CENTER if index == 0 else None
+            self._format_paragraph(paragraph, font_size=size, align=align)
+        for table in document.tables:
+            for paragraph in self._iter_table_paragraphs(table):
+                self._format_paragraph(paragraph, font_size=profile.table_size)
+
+    @staticmethod
+    def _format_paragraph(
+        paragraph: Any,
+        font_size: float,
+        align: Any | None = None,
+    ) -> None:
+        paragraph.paragraph_format.space_before = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(0)
+        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+        paragraph.paragraph_format.line_spacing = Pt(max(font_size + 1.5, 8.0))
+        if align is not None:
+            paragraph.alignment = align
+        for run in paragraph.runs:
+            run.font.size = Pt(font_size)
+
+    def _format_all_tables(self, document: Document, profile: LayoutProfile) -> None:
+        for table in document.tables:
+            table.alignment = WD_TABLE_ALIGNMENT.CENTER
+            table.autofit = False
+            self._set_table_borders(table)
+            for row in table.rows:
+                wrapped_lines = max(
+                    (
+                        self._estimate_cell_line_count(cell, re.sub(r"\s+", " ", cell.text).strip())
+                        for cell in self._unique_row_cells(row)
+                    ),
+                    default=1,
+                )
+                row.height = Pt(profile.row_height + (wrapped_lines - 1) * (profile.table_size + 1.0))
+                row.height_rule = WD_ROW_HEIGHT_RULE.AT_LEAST
+                for cell in row.cells:
+                    cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                    self._set_cell_margins(
+                        cell,
+                        top=profile.cell_margin,
+                        bottom=profile.cell_margin,
+                        left=profile.cell_margin,
+                        right=profile.cell_margin,
+                    )
+                    for paragraph in cell.paragraphs:
+                        if paragraph.text.strip() and len(paragraph.text.strip()) <= 32:
+                            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    @staticmethod
+    def _unique_row_cells(row: Any) -> list[Any]:
+        cells = []
+        seen_cells: set[int] = set()
+        for cell in row.cells:
+            cell_id = id(cell._tc)
+            if cell_id not in seen_cells:
+                seen_cells.add(cell_id)
+                cells.append(cell)
+        return cells
+
+    @staticmethod
+    def _estimate_cell_line_count(cell: Any, text: str) -> int:
+        if not text:
+            return 1
+        width = cell.width.twips if cell.width is not None else 900
+        estimated_chars_per_line = max(int(width / 145), 4)
+        explicit_lines = max(len(cell.text.splitlines()), 1)
+        wrapped_lines = (len(text) + estimated_chars_per_line - 1) // estimated_chars_per_line
+        return max(explicit_lines, wrapped_lines, 1)
+
+    @staticmethod
+    def _set_cell_margins(cell: Any, top: int, bottom: int, left: int, right: int) -> None:
+        tc_pr = cell._tc.get_or_add_tcPr()
+        tc_mar = tc_pr.first_child_found_in("w:tcMar")
+        if tc_mar is None:
+            tc_mar = OxmlElement("w:tcMar")
+            tc_pr.append(tc_mar)
+        for margin_name, value in {
+            "top": top,
+            "bottom": bottom,
+            "left": left,
+            "right": right,
+        }.items():
+            node = tc_mar.find(qn(f"w:{margin_name}"))
+            if node is None:
+                node = OxmlElement(f"w:{margin_name}")
+                tc_mar.append(node)
+            node.set(qn("w:w"), str(value))
+            node.set(qn("w:type"), "dxa")
+
+    @staticmethod
+    def _set_table_borders(table: Any) -> None:
+        tbl_pr = table._tbl.tblPr
+        borders = tbl_pr.first_child_found_in("w:tblBorders")
+        if borders is None:
+            borders = OxmlElement("w:tblBorders")
+            tbl_pr.append(borders)
+        for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+            element = borders.find(qn(f"w:{edge}"))
+            if element is None:
+                element = OxmlElement(f"w:{edge}")
+                borders.append(element)
+            element.set(qn("w:val"), "single")
+            element.set(qn("w:sz"), "4")
+            element.set(qn("w:space"), "0")
+            element.set(qn("w:color"), "000000")
 
     @classmethod
     def _clean_cleaning_value(cls, value: Any) -> str:

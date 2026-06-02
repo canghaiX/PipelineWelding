@@ -66,6 +66,44 @@ pip install -e .
 python .\demo_reask.py
 ```
 
+## 前端交互界面
+
+本项目已新增一个 TypeScript + Vue 前端和 FastAPI 后端桥接层，用于在浏览器中完成焊接信息输入、`welding_reask_agent` 重问答交互、标准文档生成与下载。
+
+### 启动后端
+
+```powershell
+pip install -r .\requirements.txt
+pip install -e .
+uvicorn pipeline_welding.api.app:app --reload --host 0.0.0.0 --port 8000
+```
+
+后端接口：
+
+| 接口 | 用途 |
+| --- | --- |
+| `POST /api/sessions` | 新建重问答会话 |
+| `POST /api/sessions/{session_id}/message` | 向 `welding_reask_agent` 发送一轮用户输入 |
+| `POST /api/sessions/{session_id}/fields` | 直接修正前端字段表单 |
+| `POST /api/sessions/{session_id}/generate` | 调用标准制定智能体和文档生成智能体 |
+| `GET /api/sessions/{session_id}/download` | 下载生成的 `.docx` 文件 |
+
+### 启动前端
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+浏览器访问：
+
+```text
+http://localhost:5173
+```
+
+前端开发服务器已配置 `/api` 代理到 `http://127.0.0.1:8000`。生成文档时仍会使用 [configs/welding_standard_agent_config.yaml](configs/welding_standard_agent_config.yaml) 和 [configs/welding_document_agent_config.yaml](configs/welding_document_agent_config.yaml)；如启用 LLM 或 Tavily MCP，请先配置 `.env` 中的 `OPENAI_API_KEY`、`TAVILY_API_KEY` 等环境变量。
+
 启动后可以像对话一样输入：
 
 ```text
