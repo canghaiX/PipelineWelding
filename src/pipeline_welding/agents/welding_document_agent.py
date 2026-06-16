@@ -601,7 +601,12 @@ class WeldingDocumentAgent:
             key: WeldingDocumentAgent._clean_value(document_fields.get(key))
             for key in required_keys
         }
+        single_process = WeldingDocumentAgent._is_single_welding_process(normalized.get("welding_process", ""))
         for bead_no in (1, 2):
+            if bead_no == 2 and single_process:
+                for field_name in ("process", "filler_metal", "diameter", "polarity", "current", "voltage", "speed", "heat_input"):
+                    normalized[f"bead_{bead_no}_{field_name}"] = "/"
+                continue
             normalized[f"bead_{bead_no}_process"] = WeldingDocumentAgent._coalesce_value(
                 normalized.get(f"bead_{bead_no}_process"),
                 normalized.get("welding_process"),
@@ -636,6 +641,13 @@ class WeldingDocumentAgent:
                 normalized.get("heat_input"),
             )
         return normalized
+
+    @staticmethod
+    def _is_single_welding_process(process: str) -> bool:
+        text = WeldingDocumentAgent._clean_value(process)
+        if text == "/":
+            return False
+        return not any(separator in text for separator in ("+", "＋", "/", "、", ",", "，"))
 
     @staticmethod
     def _clean_value(value: Any) -> str:

@@ -11,3 +11,5 @@ logs/
 result/
 data/raw/
 data/processed/
+data/mineru/
+data/rag/

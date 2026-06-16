@@ -102,7 +102,7 @@ npm run dev
 http://localhost:5173
 ```
 
-前端开发服务器已配置 `/api` 代理到 `http://127.0.0.1:8000`。生成文档时仍会使用 [configs/welding_standard_agent_config.yaml](configs/welding_standard_agent_config.yaml) 和 [configs/welding_document_agent_config.yaml](configs/welding_document_agent_config.yaml)；如启用 LLM 或 Tavily MCP，请先配置 `.env` 中的 `OPENAI_API_KEY`、`TAVILY_API_KEY` 等环境变量。
+前端开发服务器已配置 `/api` 代理到 `http://127.0.0.1:8000`。生成文档时仍会使用 [configs/welding_standard_agent_config.yaml](configs/welding_standard_agent_config.yaml) 和 [configs/welding_document_agent_config.yaml](configs/welding_document_agent_config.yaml)；如启用 LLM 或 Tavily MCP，请先配置 `.env` 中的 `DEEPSEEK_API_KEY`、`TAVILY_API_KEY` 等环境变量。
 
 启动后可以像对话一样输入：
 
@@ -255,6 +255,8 @@ generation:
 运行 `python .\demo_standard_agent.py` 时，MCP Client 会直接连接 Tavily 在线 MCP Server。`.env` 中只需要填写：
 
 ```env
+DEEPSEEK_API_KEY=replace-with-your-deepseek-api-key
+DEEPSEEK_BASE_URL=https://api.deepseek.com
 TAVILY_API_KEY=replace-with-your-tavily-api-key
 TAVILY_SEARCH_DEPTH=basic
 ```

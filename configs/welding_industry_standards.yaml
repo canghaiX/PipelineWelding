@@ -1,0 +1,747 @@
+metadata:
+  version: "2026-06-02"
+  language: zh-CN
+  scope:
+    - 工业压力管道焊接 PWPS 参考字段
+    - 油气长输/集输管道焊接 PWPS 参考字段
+    - ASME/AWS 材料场景兼容参考
+  disclaimer: >
+    本文件用于管道焊接大模型生成 PWPS 模板字段的参考值，不替代正式标准、
+    设计文件、焊接工艺评定 PQR、焊材说明书、项目 WPS 或工程师审核。
+    电流、电压、焊接速度、气体流量等字段为参考参数，不是国标强制通用值。
+
+required_input_fields:
+  - key: welding_process
+    label: 焊接工艺
+    type: enum
+    options:
+      - SMAW
+      - GTAW
+      - GMAW
+      - FCAW
+      - SAW
+    source_hint: WPS/PQR、工艺卡或施工方案
+    examples:
+      - SMAW
+      - GTAW+SMAW
+    role: user_constraint
+    basis: user_input_required
+    used_for:
+      - standard_matching
+      - document_generation
+      - reask_completion
+
+  - key: welding_object
+    label: 焊接对象
+    type: enum
+    options:
+      - 管道
+      - 板材
+      - 管件
+      - 设备
+    source_hint: 图纸、工单或检验委托单
+    examples:
+      - 管道
+      - 设备
+    role: user_constraint
+    basis: user_input_required
+    used_for:
+      - standard_matching
+      - document_generation
+      - reask_completion
+
+  - key: joint_type
+    label: 接头形式
+    type: enum
+    options:
+      - 对接
+      - 角接
+      - 搭接
+      - 支管连接
+    source_hint: 焊接接头详图、坡口图或施工图
+    examples:
+      - 对接
+      - 支管连接
+    role: user_constraint
+    basis: user_input_required
+    used_for:
+      - standard_matching
+      - document_generation
+      - reask_completion
+
+  - key: base_material
+    label: 母材牌号/规格
+    type: text
+    source_hint: 材料数据库、标准材料分组、材质证明书或设计文件
+    examples:
+      - 20#
+      - Q345R
+      - ASTM A106 Gr.B / P-No.1
+    role: user_constraint
+    basis: user_input_required
+    used_for:
+      - standard_matching
+      - document_generation
+      - reask_completion
+
+  - key: base_thickness_or_diameter
+    label: 母材厚度/管径
+    type: text
+    source_hint: 图纸、材料清单、标准适用范围
+    examples:
+      - 壁厚 8 mm，DN100
+      - 板厚 12 mm
+      - OD 219.1 x 8.2 mm
+    role: user_constraint
+    basis: user_input_required
+    used_for:
+      - standard_matching
+      - document_generation
+      - reask_completion
+
+standard_families:
+  industrial_pressure_piping:
+    label: 工业压力管道
+    applicable_codes:
+      - GB/T 20801.4-2020 压力管道规范 工业管道 第4部分：制作与安装
+      - GB 50236-2011 现场设备、工业管道焊接工程施工规范
+      - GB 50683-2011 现场设备、工业管道焊接工程施工质量验收规范
+      - NB/T 47014-2023 承压设备焊接工艺评定
+      - GB/T 19869.1-2005 钢、镍及镍合金的焊接工艺评定试验
+  oil_gas_pipeline:
+    label: 油气长输/集输管道
+    applicable_codes:
+      - GB/T 9711-2023 石油天然气工业 管线输送系统用钢管
+      - GB 50369-2014 油气长输管道工程施工及验收规范
+      - GB 50819-2013 油气田集输管道工程施工规范
+      - SY/T 4109 钢质管道无损检测
+  asme_aws_reference:
+    label: ASME/AWS 兼容参考
+    applicable_codes:
+      - ASME Section IX Welding, Brazing, and Fusing Qualifications
+      - ASTM A106/A106M Seamless Carbon Steel Pipe
+      - AWS A5.18 Carbon Steel Electrodes and Rods for Gas Shielded Arc Welding
+      - AWS A5.1 Carbon Steel Electrodes for Shielded Metal Arc Welding
+
+process_reference_packages:
+  SMAW:
+    label: 焊条电弧焊
+    applicable_processes: ["SMAW"]
+    notes:
+      - 气体、钨极、喷嘴等字段对 SMAW 不适用，填 /。
+      - 电流、电压、焊速为常见工程参考参数，需结合 WPS/PQR 审核。
+    document_fields:
+      mechanization: {value: "手工", basis: "standard_classification", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      filler_category: {value: "焊条", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117", "GB/T 5118"]}
+      filler_standard: {value: "GB/T 5117 / GB/T 5118", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 5117", "GB/T 5118"]}
+      filler_diameter: {value: "3.2 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117", "GB/T 5118"]}
+      filler_model: {value: "E4315/E5015", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117", "GB/T 5118"]}
+      filler_trade_name: {value: "E4315/E5015", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117", "GB/T 5118"]}
+      shielding_gas: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      shielding_gas_mix: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      gas_flow: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      trailing_gas: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      backing_gas: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      tungsten_electrode: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      nozzle_diameter: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      current_type: {value: "DC", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      polarity: {value: "DCEP", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117", "GB/T 5118"]}
+      current: {value: "90-150A", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117", "GB/T 5118"]}
+      voltage: {value: "22-30V", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117", "GB/T 5118"]}
+      welding_speed: {value: "80-160 mm/min", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      weaving: {value: "可摆动", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      single_or_multi_wire: {value: "单焊条", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_1_process: {value: "SMAW", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117", "GB/T 5118"]}
+      bead_1_filler_metal: {value: "E4315/E5015", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117", "GB/T 5118"]}
+      bead_1_diameter: {value: "3.2 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117", "GB/T 5118"]}
+      bead_1_polarity: {value: "DCEP", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117", "GB/T 5118"]}
+      bead_1_current: {value: "90-150", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117", "GB/T 5118"]}
+      bead_1_voltage: {value: "22-30", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117", "GB/T 5118"]}
+      bead_1_speed: {value: "80-160", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_1_heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      bead_2_process: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+
+  GTAW:
+    label: 钨极氩弧焊
+    applicable_processes: ["GTAW"]
+    notes:
+      - 适用于碳钢/低合金钢管道常见 GTAW 参考参数。
+      - 电流、电压、焊速和气体流量为工程参考参数。
+    document_fields:
+      mechanization: {value: "手工", basis: "standard_classification", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      filler_category: {value: "焊丝", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      filler_standard: {value: "GB/T 8110", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 8110"]}
+      filler_diameter: {value: "2.4 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      filler_model: {value: "ER50-6", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      filler_trade_name: {value: "ER50-6", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      shielding_gas: {value: "Ar", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      shielding_gas_mix: {value: "99.99%", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      gas_flow: {value: "8-15 L/min", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      trailing_gas: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      backing_gas: {value: "Ar", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      tungsten_electrode: {value: "铈钨 2.4 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      nozzle_diameter: {value: "8-12 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      current_type: {value: "DC", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      polarity: {value: "DCEN", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      current: {value: "80-130A", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      voltage: {value: "10-16V", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      welding_speed: {value: "50-120 mm/min", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      weaving: {value: "不摆动", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      single_or_multi_wire: {value: "单丝", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_1_process: {value: "GTAW", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_filler_metal: {value: "ER50-6", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_diameter: {value: "2.4 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_polarity: {value: "DCEN", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_current: {value: "80-130", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_voltage: {value: "10-16", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_speed: {value: "50-120", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_1_heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      bead_2_process: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+
+  GTAW+SMAW:
+    label: GTAW 根焊 + SMAW 填充盖面
+    applicable_processes: ["GTAW", "SMAW"]
+    notes:
+      - 组合工艺按 GTAW 根焊、SMAW 填充/盖面生成两行焊道参数。
+      - 参数为工程参考，正式使用需结合 PQR/WPS。
+    document_fields:
+      mechanization: {value: "手工", basis: "standard_classification", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      filler_category: {value: "焊丝/焊条", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      filler_standard: {value: "GB/T 8110 / GB/T 5117", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      filler_diameter: {value: "2.4 mm / 3.2 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      filler_model: {value: "ER50-6 / E4315", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      filler_trade_name: {value: "ER50-6 / E4315", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      shielding_gas: {value: "Ar", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      shielding_gas_mix: {value: "99.99%", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      gas_flow: {value: "8-15 L/min", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      trailing_gas: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      backing_gas: {value: "Ar", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      tungsten_electrode: {value: "铈钨 2.4 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      nozzle_diameter: {value: "8-12 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      current_type: {value: "DC", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      polarity: {value: "DCEN/DCEP", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      current: {value: "GTAW 80-130A / SMAW 90-150A", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      voltage: {value: "GTAW 10-16V / SMAW 22-30V", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      welding_speed: {value: "50-160 mm/min", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      weaving: {value: "GTAW不摆动，SMAW可摆动", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      single_or_multi_wire: {value: "单丝/单焊条", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_1_process: {value: "GTAW", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_filler_metal: {value: "ER50-6", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_diameter: {value: "2.4 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_polarity: {value: "DCEN", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_current: {value: "80-130", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_voltage: {value: "10-16", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_speed: {value: "50-120", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_1_heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      bead_2_process: {value: "SMAW", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_filler_metal: {value: "E4315/E5015", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_diameter: {value: "3.2 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_polarity: {value: "DCEP", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_current: {value: "90-150", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_voltage: {value: "22-30", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_speed: {value: "80-160", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_2_heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+
+  GMAW:
+    label: 熔化极气体保护焊
+    applicable_processes: ["GMAW"]
+    notes:
+      - 按半自动实心焊丝气体保护焊参考。
+      - 保护气可按项目 WPS 在 CO2 或 Ar+CO2 中确认。
+    document_fields:
+      mechanization: {value: "半自动", basis: "standard_classification", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      filler_category: {value: "实心焊丝", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      filler_standard: {value: "GB/T 8110", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 8110"]}
+      filler_diameter: {value: "1.0 mm / 1.2 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      filler_model: {value: "ER50-6", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      filler_trade_name: {value: "ER50-6", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      shielding_gas: {value: "CO2/Ar+CO2", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      shielding_gas_mix: {value: "CO2或80%Ar+20%CO2", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      gas_flow: {value: "15-25 L/min", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      trailing_gas: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      backing_gas: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      tungsten_electrode: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      nozzle_diameter: {value: "12-16 mm", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      current_type: {value: "DC", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      polarity: {value: "DCEP", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      current: {value: "120-220A", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      voltage: {value: "18-28V", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      welding_speed: {value: "180-350 mm/min", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      arc_type: {value: "短路弧/喷射弧", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      wire_feed_speed: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      weaving: {value: "可小幅摆动", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      single_or_multi_wire: {value: "单丝", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_1_process: {value: "GMAW", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_filler_metal: {value: "ER50-6", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_diameter: {value: "1.0/1.2 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_polarity: {value: "DCEP", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_current: {value: "120-220", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_voltage: {value: "18-28", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_speed: {value: "180-350", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_1_heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      bead_2_process: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+
+  FCAW:
+    label: 药芯焊丝电弧焊
+    applicable_processes: ["FCAW"]
+    notes:
+      - 按气保护药芯焊丝半自动焊参考；自保护场景需由项目 WPS 明确。
+      - 电参数为工程参考。
+    document_fields:
+      mechanization: {value: "半自动", basis: "standard_classification", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      filler_category: {value: "药芯焊丝", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 10045", "GB/T 17493"]}
+      filler_standard: {value: "GB/T 10045 / GB/T 17493", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 10045", "GB/T 17493"]}
+      filler_diameter: {value: "1.2 mm / 1.6 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 10045", "GB/T 17493"]}
+      filler_model: {value: "E501T-1", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 10045", "GB/T 17493"]}
+      filler_trade_name: {value: "E501T-1", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 10045", "GB/T 17493"]}
+      shielding_gas: {value: "CO2", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 10045"]}
+      shielding_gas_mix: {value: "CO2", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 10045"]}
+      gas_flow: {value: "15-25 L/min", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 10045"]}
+      trailing_gas: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      backing_gas: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      tungsten_electrode: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      nozzle_diameter: {value: "12-16 mm", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      current_type: {value: "DC", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      polarity: {value: "DCEP", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 10045", "GB/T 17493"]}
+      current: {value: "140-260A", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 10045", "GB/T 17493"]}
+      voltage: {value: "22-32V", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 10045", "GB/T 17493"]}
+      welding_speed: {value: "150-320 mm/min", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      arc_type: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      wire_feed_speed: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      weaving: {value: "可摆动", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      single_or_multi_wire: {value: "单丝", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_1_process: {value: "FCAW", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 10045", "GB/T 17493"]}
+      bead_1_filler_metal: {value: "E501T-1", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 10045", "GB/T 17493"]}
+      bead_1_diameter: {value: "1.2/1.6 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 10045", "GB/T 17493"]}
+      bead_1_polarity: {value: "DCEP", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 10045", "GB/T 17493"]}
+      bead_1_current: {value: "140-260", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 10045", "GB/T 17493"]}
+      bead_1_voltage: {value: "22-32", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 10045", "GB/T 17493"]}
+      bead_1_speed: {value: "150-320", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_1_heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      bead_2_process: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+
+  SAW:
+    label: 埋弧焊
+    applicable_processes: ["SAW"]
+    notes:
+      - 按自动埋弧焊单丝参考；多丝、多层多道参数需由项目 WPS/PQR 明确。
+      - 气体、钨极、喷嘴字段对 SAW 不适用，填 /。
+    document_fields:
+      mechanization: {value: "自动", basis: "standard_classification", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      filler_category: {value: "焊丝/焊剂", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5293", "GB/T 12470", "NB/T 47018.4"]}
+      filler_standard: {value: "GB/T 5293 / GB/T 12470 / NB/T 47018.4", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 5293", "GB/T 12470", "NB/T 47018.4"]}
+      filler_diameter: {value: "3.2 mm / 4.0 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5293", "GB/T 12470"]}
+      filler_model: {value: "H08MnA/H10Mn2 + HJ431", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5293", "GB/T 12470", "NB/T 47018.4"]}
+      filler_trade_name: {value: "H08MnA/H10Mn2 + HJ431", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5293", "GB/T 12470", "NB/T 47018.4"]}
+      shielding_gas: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      shielding_gas_mix: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      gas_flow: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      trailing_gas: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      backing_gas: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      tungsten_electrode: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      nozzle_diameter: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      current_type: {value: "AC/DC", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      polarity: {value: "DCEP/AC", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5293", "GB/T 12470"]}
+      current: {value: "350-650A", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5293", "GB/T 12470"]}
+      voltage: {value: "28-36V", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5293", "GB/T 12470"]}
+      welding_speed: {value: "250-550 mm/min", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      arc_type: {value: "埋弧", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5293", "GB/T 12470"]}
+      wire_feed_speed: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      weaving: {value: "不摆动", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      single_or_multi_wire: {value: "单丝", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_1_process: {value: "SAW", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5293", "GB/T 12470", "NB/T 47018.4"]}
+      bead_1_filler_metal: {value: "H08MnA/H10Mn2", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5293", "GB/T 12470", "NB/T 47018.4"]}
+      bead_1_diameter: {value: "3.2/4.0 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5293", "GB/T 12470"]}
+      bead_1_polarity: {value: "DCEP/AC", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5293", "GB/T 12470"]}
+      bead_1_current: {value: "350-650", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5293", "GB/T 12470"]}
+      bead_1_voltage: {value: "28-36", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5293", "GB/T 12470"]}
+      bead_1_speed: {value: "250-550", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_1_heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      bead_2_process: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+
+standards:
+  - name: asme_reference_astm_a106_gtaw_smaw_pipe_butt
+    family: asme_aws_reference
+    match:
+      welding_process_all: ["GTAW", "SMAW"]
+      welding_object_any: ["管道", "pipe"]
+      joint_type_any: ["对接", "butt"]
+      base_material_any: ["ASTM A106", "A106", "SA-106", "P-No.1", "P-No. 1"]
+    applicable_codes:
+      - ASME Section IX
+      - ASTM A106/A106M
+      - AWS A5.18
+      - AWS A5.1
+    confidence: reference
+    notes:
+      - ASME/AWS 参考场景，不属于中国国标体系。
+      - 参数为常见 PWPS 参考值，应结合 PQR/WPS 和项目要求审核。
+    document_fields:
+      mechanization: {value: "手工", basis: "reference_parameter", confidence: "medium", source_codes: ["ASME Section IX"]}
+      groove_type: {value: "V形坡口", basis: "reference_parameter", confidence: "medium", source_codes: ["ASME Section IX"]}
+      backing: {value: "无", basis: "reference_parameter", confidence: "medium", source_codes: ["ASME Section IX"]}
+      joint_other: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      base_material_category: {value: "P-No.1", basis: "standard_classification", confidence: "medium", source_codes: ["ASME Section IX"]}
+      base_material_group: {value: "Group 1", basis: "standard_classification", confidence: "medium", source_codes: ["ASME Section IX"]}
+      base_material_standard: {value: "ASTM A106", basis: "standard_classification", confidence: "high", source_codes: ["ASTM A106/A106M"]}
+      base_material_grade: {value: "ASTM A106 Gr.B", basis: "standard_classification", confidence: "high", source_codes: ["ASTM A106/A106M"]}
+      base_thickness_range_fillet: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      pipe_diameter_thickness_fillet: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      corrosion_overlay_chemical_composition: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      corrosion_overlay_other: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      shielding_gas: {value: "Ar", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.18"]}
+      shielding_gas_mix: {value: "99.99%", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.18"]}
+      gas_flow: {value: "8-15 L/min", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.18"]}
+      trailing_gas: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      backing_gas: {value: "Ar", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.18"]}
+      tungsten_electrode: {value: "铈钨 2.4 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["ASME Section IX"]}
+      nozzle_diameter: {value: "8-12 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.18"]}
+      current_type: {value: "DC", basis: "reference_parameter", confidence: "medium", source_codes: ["ASME Section IX"]}
+      filler_category: {value: "焊丝/焊条", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.18", "AWS A5.1"]}
+      filler_standard: {value: "AWS A5.18 / AWS A5.1", basis: "standard_classification", confidence: "medium", source_codes: ["AWS A5.18", "AWS A5.1"]}
+      filler_diameter: {value: "2.4 mm / 3.2 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.18", "AWS A5.1"]}
+      filler_model: {value: "ER70S-6 / E7016", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.18", "AWS A5.1"]}
+      filler_trade_name: {value: "ER70S-6 / E7016", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.18", "AWS A5.1"]}
+      filler_class: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      butt_weld_position: {value: "5G", basis: "reference_parameter", confidence: "medium", source_codes: ["ASME Section IX"]}
+      fillet_weld_position: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      vertical_direction: {value: "向上", basis: "reference_parameter", confidence: "medium", source_codes: ["ASME Section IX"]}
+      pwht_temperature: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      pwht_time: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      preheat_temperature: {value: "≥10℃", basis: "reference_parameter", confidence: "medium", source_codes: ["ASME Section IX"]}
+      interpass_temperature: {value: "≤250℃", basis: "reference_parameter", confidence: "medium", source_codes: ["ASME Section IX"]}
+      preheat_time: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      heating_method: {value: "电加热/火焰加热", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      polarity: {value: "EN/EP", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.18", "AWS A5.1"]}
+      current: {value: "GTAW 80-130A / SMAW 90-130A", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.18", "AWS A5.1"]}
+      voltage: {value: "GTAW 10-16V / SMAW 22-28V", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.18", "AWS A5.1"]}
+      welding_speed: {value: "50-160 mm/min", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      arc_type: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      wire_feed_speed: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      weaving: {value: "GTAW不摆动，SMAW可摆动", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      weaving_parameter: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      cleaning: {value: "焊前及层间清理至金属光泽，去除油污、铁锈、氧化皮和飞溅物", basis: "standard_requirement", confidence: "medium", source_codes: ["ASME Section IX"]}
+      back_gouging: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      single_or_multi_pass: {value: "多道焊", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      single_or_multi_wire: {value: "单丝/单焊条", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      contact_tip_distance: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      peening: {value: "否", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      technical_other: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      prepared_by: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      prepared_date: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      reviewed_by: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      reviewed_date: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      approved_by: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      approved_date: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      bead_1_process: {value: "GTAW", basis: "reference_parameter", confidence: "medium", source_codes: ["ASME Section IX"]}
+      bead_1_filler_metal: {value: "ER70S-6", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.18"]}
+      bead_1_diameter: {value: "2.4 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.18"]}
+      bead_1_polarity: {value: "EN", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.18"]}
+      bead_1_current: {value: "80-130", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.18"]}
+      bead_1_voltage: {value: "10-16", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.18"]}
+      bead_1_speed: {value: "50-120", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_1_heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      bead_2_process: {value: "SMAW", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.1"]}
+      bead_2_filler_metal: {value: "E7016", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.1"]}
+      bead_2_diameter: {value: "3.2 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.1"]}
+      bead_2_polarity: {value: "EP", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.1"]}
+      bead_2_current: {value: "90-130", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.1"]}
+      bead_2_voltage: {value: "22-28", basis: "reference_parameter", confidence: "medium", source_codes: ["AWS A5.1"]}
+      bead_2_speed: {value: "80-160", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_2_heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+
+  - name: gb_industrial_20_gtaw_smaw_pipe_butt
+    family: industrial_pressure_piping
+    match:
+      welding_process_all: ["GTAW", "SMAW"]
+      welding_object_any: ["管道", "pipe"]
+      joint_type_any: ["对接", "butt"]
+      base_material_any: ["20#", "20钢", "20号钢", "GB/T 8163", "GB/T 3087", "GB/T 9948"]
+    applicable_codes:
+      - GB/T 20801.4-2020
+      - GB 50236-2011
+      - GB 50683-2011
+      - NB/T 47014-2023
+      - GB/T 19869.1-2005
+    confidence: reference
+    notes:
+      - 适用于工业压力管道碳素钢 20# 常见 GTAW 根焊 + SMAW 填充盖面参考。
+      - 焊材、参数为工程参考，正式使用需由 PQR/WPS 确认。
+    document_fields:
+      mechanization: {value: "手工", basis: "standard_requirement", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      groove_type: {value: "V形坡口", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      backing: {value: "无", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      joint_other: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      base_material_category: {value: "碳素钢", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 20801.4-2020"]}
+      base_material_group: {value: "/", basis: "unknown", confidence: "medium", source_codes: []}
+      base_material_standard: {value: "GB/T 8163 / GB/T 9948", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 20801.4-2020"]}
+      base_material_grade: {value: "20#", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 20801.4-2020"]}
+      base_thickness_range_fillet: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      pipe_diameter_thickness_fillet: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      corrosion_overlay_chemical_composition: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      corrosion_overlay_other: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      shielding_gas: {value: "Ar", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      shielding_gas_mix: {value: "99.99%", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      gas_flow: {value: "8-15 L/min", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      trailing_gas: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      backing_gas: {value: "Ar", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      tungsten_electrode: {value: "铈钨 2.4 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      nozzle_diameter: {value: "8-12 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      current_type: {value: "DC", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      filler_category: {value: "焊丝/焊条", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      filler_standard: {value: "GB/T 8110 / GB/T 5117", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      filler_diameter: {value: "2.4 mm / 3.2 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      filler_model: {value: "ER50-6 / E4315", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      filler_trade_name: {value: "ER50-6 / E4315", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      filler_class: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      butt_weld_position: {value: "5G", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 19869.1-2005"]}
+      fillet_weld_position: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      vertical_direction: {value: "向上", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      pwht_temperature: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      pwht_time: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      preheat_temperature: {value: "≥10℃", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      interpass_temperature: {value: "≤250℃", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      preheat_time: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      heating_method: {value: "电加热/火焰加热", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      polarity: {value: "DCEN/DCEP", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      current: {value: "GTAW 80-130A / SMAW 90-130A", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      voltage: {value: "GTAW 10-16V / SMAW 22-28V", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      welding_speed: {value: "50-160 mm/min", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      arc_type: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      wire_feed_speed: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      weaving: {value: "GTAW不摆动，SMAW可摆动", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      weaving_parameter: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      cleaning: {value: "焊前及层间清理至金属光泽，去除油污、铁锈、氧化皮和飞溅物", basis: "standard_requirement", confidence: "medium", source_codes: ["GB 50236-2011", "GB 50683-2011"]}
+      back_gouging: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      single_or_multi_pass: {value: "多道焊", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      single_or_multi_wire: {value: "单丝/单焊条", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      contact_tip_distance: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      peening: {value: "否", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      technical_other: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      prepared_by: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      prepared_date: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      reviewed_by: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      reviewed_date: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      approved_by: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      approved_date: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      bead_1_process: {value: "GTAW", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_filler_metal: {value: "ER50-6", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_diameter: {value: "2.4 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_polarity: {value: "DCEN", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_current: {value: "80-130", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_voltage: {value: "10-16", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_speed: {value: "50-120", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_1_heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      bead_2_process: {value: "SMAW", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_filler_metal: {value: "E4315", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_diameter: {value: "3.2 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_polarity: {value: "DCEP", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_current: {value: "90-130", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_voltage: {value: "22-28", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_speed: {value: "80-160", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_2_heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+
+  - name: gb_industrial_q345_gtaw_smaw_pipe_butt
+    family: industrial_pressure_piping
+    match:
+      welding_process_all: ["GTAW", "SMAW"]
+      welding_process_any: ["SMAW"]
+      welding_object_any: ["管道", "pipe"]
+      joint_type_any: ["对接", "butt"]
+      base_material_any: ["Q345", "Q355", "16Mn", "低合金钢"]
+    applicable_codes:
+      - GB/T 20801.4-2020
+      - GB 50236-2011
+      - GB 50683-2011
+      - NB/T 47014-2023
+      - GB/T 19869.1-2005
+    confidence: reference
+    notes:
+      - 适用于工业压力管道低合金钢 Q345/Q355 常见对接焊参考。
+      - 参数为参考值，应结合 PQR/WPS、热输入和项目设计要求审核。
+    document_fields:
+      mechanization: {value: "手工", basis: "standard_requirement", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      groove_type: {value: "V形坡口", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      backing: {value: "无", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      joint_other: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      base_material_category: {value: "低合金钢", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 20801.4-2020"]}
+      base_material_group: {value: "/", basis: "unknown", confidence: "medium", source_codes: []}
+      base_material_standard: {value: "GB/T 1591", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 1591"]}
+      base_material_grade: {value: "Q345/Q355", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 1591"]}
+      filler_standard: {value: "GB/T 8110 / GB/T 5117", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      filler_category: {value: "焊丝/焊条", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      filler_diameter: {value: "2.4 mm / 3.2 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      filler_model: {value: "ER50-6 / E5015", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      filler_trade_name: {value: "ER50-6 / E5015", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      preheat_temperature: {value: "≥10℃", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      interpass_temperature: {value: "≤250℃", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      current: {value: "GTAW 90-140A / SMAW 100-150A", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      voltage: {value: "GTAW 10-16V / SMAW 22-30V", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      welding_speed: {value: "50-150 mm/min", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      polarity: {value: "DCEN/DCEP", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      shielding_gas: {value: "Ar", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      shielding_gas_mix: {value: "99.99%", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      gas_flow: {value: "8-15 L/min", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      backing_gas: {value: "Ar", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      butt_weld_position: {value: "5G", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 19869.1-2005"]}
+      vertical_direction: {value: "向上", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      current_type: {value: "DC", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      tungsten_electrode: {value: "铈钨 2.4 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      nozzle_diameter: {value: "8-12 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      heating_method: {value: "电加热/火焰加热", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      weaving: {value: "GTAW不摆动，SMAW可摆动", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      cleaning: {value: "焊前及层间清理至金属光泽，去除油污、铁锈、氧化皮和飞溅物", basis: "standard_requirement", confidence: "medium", source_codes: ["GB 50236-2011", "GB 50683-2011"]}
+      single_or_multi_pass: {value: "多道焊", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50236-2011"]}
+      single_or_multi_wire: {value: "单丝/单焊条", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      peening: {value: "否", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      base_thickness_range_fillet: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      pipe_diameter_thickness_fillet: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      pwht_temperature: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      pwht_time: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      arc_type: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      wire_feed_speed: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      bead_1_process: {value: "GTAW", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_filler_metal: {value: "ER50-6", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_diameter: {value: "2.4 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_polarity: {value: "DCEN", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_current: {value: "90-140", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_voltage: {value: "10-16", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_speed: {value: "50-120", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_1_heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      bead_2_process: {value: "SMAW", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_filler_metal: {value: "E5015", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_diameter: {value: "3.2 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_polarity: {value: "DCEP", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_current: {value: "100-150", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_voltage: {value: "22-30", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_speed: {value: "80-150", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_2_heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+
+  - name: oil_gas_l245_smaw_pipe_butt
+    family: oil_gas_pipeline
+    match:
+      welding_process_any: ["SMAW"]
+      welding_object_any: ["管道", "pipe", "长输", "集输"]
+      joint_type_any: ["对接", "butt"]
+      base_material_any: ["L245", "B级", "管线钢", "GB/T 9711", "API 5L B"]
+    applicable_codes:
+      - GB/T 9711-2023
+      - GB 50369-2014
+      - GB 50819-2013
+      - SY/T 4109
+    confidence: reference
+    notes:
+      - 适用于 L245/API 5L B 级管线钢常见 SMAW 对接焊参考。
+      - 管线工程参数需结合线路等级、环境、壁厚和业主规范确认。
+    document_fields:
+      mechanization: {value: "手工", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50369-2014"]}
+      groove_type: {value: "V形坡口", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50369-2014"]}
+      backing: {value: "无", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50369-2014"]}
+      base_material_category: {value: "管线钢", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 9711-2023"]}
+      base_material_standard: {value: "GB/T 9711", basis: "standard_classification", confidence: "high", source_codes: ["GB/T 9711-2023"]}
+      base_material_grade: {value: "L245", basis: "standard_classification", confidence: "high", source_codes: ["GB/T 9711-2023"]}
+      filler_standard: {value: "GB/T 5117", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 5117"]}
+      filler_category: {value: "焊条", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      filler_diameter: {value: "3.2 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      filler_model: {value: "E4315/E4316", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      filler_trade_name: {value: "E4315/E4316", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      butt_weld_position: {value: "5G", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50369-2014"]}
+      vertical_direction: {value: "向上", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50369-2014"]}
+      preheat_temperature: {value: "≥10℃", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50369-2014"]}
+      interpass_temperature: {value: "≤250℃", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50369-2014"]}
+      current_type: {value: "DC", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      polarity: {value: "DCEP", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      current: {value: "90-140A", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      voltage: {value: "22-30V", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      welding_speed: {value: "80-160 mm/min", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      cleaning: {value: "焊前及层间清理至金属光泽，去除油污、铁锈、氧化皮和飞溅物", basis: "standard_requirement", confidence: "medium", source_codes: ["GB 50369-2014", "GB 50819-2013"]}
+      single_or_multi_pass: {value: "多道焊", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50369-2014"]}
+      single_or_multi_wire: {value: "单焊条", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      peening: {value: "否", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      base_thickness_range_fillet: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      pipe_diameter_thickness_fillet: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      pwht_temperature: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      pwht_time: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      shielding_gas: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      gas_flow: {value: "/", basis: "not_applicable", confidence: "high", source_codes: []}
+      heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      bead_1_process: {value: "SMAW", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_1_filler_metal: {value: "E4315", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_1_diameter: {value: "3.2 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_1_polarity: {value: "DCEP", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_1_current: {value: "90-140", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_1_voltage: {value: "22-30", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_1_speed: {value: "80-160", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_1_heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+
+  - name: oil_gas_l360_gtaw_smaw_pipe_butt
+    family: oil_gas_pipeline
+    match:
+      welding_process_all: ["GTAW", "SMAW"]
+      welding_object_any: ["管道", "pipe", "长输", "集输"]
+      joint_type_any: ["对接", "butt"]
+      base_material_any: ["L360", "X52", "L360M", "管线钢", "GB/T 9711", "API 5L X52"]
+    applicable_codes:
+      - GB/T 9711-2023
+      - GB 50369-2014
+      - GB 50819-2013
+      - SY/T 4109
+    confidence: reference
+    notes:
+      - 适用于 L360/X52 管线钢常见 GTAW 根焊 + SMAW 填充盖面参考。
+      - 应结合管线钢等级、壁厚、低温韧性要求和业主规范确认。
+    document_fields:
+      mechanization: {value: "手工", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50369-2014"]}
+      groove_type: {value: "V形坡口", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50369-2014"]}
+      backing: {value: "无", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50369-2014"]}
+      base_material_category: {value: "管线钢", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 9711-2023"]}
+      base_material_standard: {value: "GB/T 9711", basis: "standard_classification", confidence: "high", source_codes: ["GB/T 9711-2023"]}
+      base_material_grade: {value: "L360/X52", basis: "standard_classification", confidence: "high", source_codes: ["GB/T 9711-2023"]}
+      filler_standard: {value: "GB/T 8110 / GB/T 5117", basis: "standard_classification", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      filler_category: {value: "焊丝/焊条", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      filler_diameter: {value: "2.4 mm / 3.2 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      filler_model: {value: "ER50-6 / E5015", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      filler_trade_name: {value: "ER50-6 / E5015", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      shielding_gas: {value: "Ar", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      shielding_gas_mix: {value: "99.99%", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      gas_flow: {value: "8-15 L/min", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      backing_gas: {value: "Ar", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      butt_weld_position: {value: "5G", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50369-2014"]}
+      vertical_direction: {value: "向上", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50369-2014"]}
+      preheat_temperature: {value: "≥10℃", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50369-2014"]}
+      interpass_temperature: {value: "≤250℃", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50369-2014"]}
+      current_type: {value: "DC", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      polarity: {value: "DCEN/DCEP", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      current: {value: "GTAW 90-140A / SMAW 100-150A", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      voltage: {value: "GTAW 10-16V / SMAW 22-30V", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110", "GB/T 5117"]}
+      welding_speed: {value: "50-150 mm/min", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      tungsten_electrode: {value: "铈钨 2.4 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      nozzle_diameter: {value: "8-12 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      cleaning: {value: "焊前及层间清理至金属光泽，去除油污、铁锈、氧化皮和飞溅物", basis: "standard_requirement", confidence: "medium", source_codes: ["GB 50369-2014", "GB 50819-2013"]}
+      single_or_multi_pass: {value: "多道焊", basis: "reference_parameter", confidence: "medium", source_codes: ["GB 50369-2014"]}
+      single_or_multi_wire: {value: "单丝/单焊条", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      peening: {value: "否", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      base_thickness_range_fillet: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      pipe_diameter_thickness_fillet: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      pwht_temperature: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      pwht_time: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      bead_1_process: {value: "GTAW", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_filler_metal: {value: "ER50-6", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_diameter: {value: "2.4 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_polarity: {value: "DCEN", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_current: {value: "90-140", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_voltage: {value: "10-16", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 8110"]}
+      bead_1_speed: {value: "50-120", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_1_heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}
+      bead_2_process: {value: "SMAW", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_filler_metal: {value: "E5015", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_diameter: {value: "3.2 mm", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_polarity: {value: "DCEP", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_current: {value: "100-150", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_voltage: {value: "22-30", basis: "reference_parameter", confidence: "medium", source_codes: ["GB/T 5117"]}
+      bead_2_speed: {value: "80-150", basis: "reference_parameter", confidence: "medium", source_codes: []}
+      bead_2_heat_input: {value: "/", basis: "unknown", confidence: "high", source_codes: []}

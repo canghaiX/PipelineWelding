@@ -17,6 +17,12 @@ from .welding_standard_agent import (
     build_welding_standard_agent_from_config,
     build_welding_standard_agent,
 )
+from .natural_language_welding_agent import (
+    NaturalLanguageWeldingAgent,
+    NaturalLanguageWeldingAgentConfig,
+    build_natural_language_welding_agent,
+    build_natural_language_welding_agent_from_config,
+)
 
 __all__ = [
     "FieldType",
@@ -27,7 +33,11 @@ __all__ = [
     "WeldingDocumentAgentConfig",
     "WeldingStandardAgent",
     "WeldingStandardAgentConfig",
+    "NaturalLanguageWeldingAgent",
+    "NaturalLanguageWeldingAgentConfig",
     "build_default_agent",
+    "build_natural_language_welding_agent",
+    "build_natural_language_welding_agent_from_config",
     "build_welding_document_agent",
     "build_welding_document_agent_from_config",
     "build_welding_standard_agent",

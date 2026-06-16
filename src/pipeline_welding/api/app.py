@@ -12,6 +12,7 @@ from starlette.concurrency import run_in_threadpool
 
 from pipeline_welding.agents import (
     REQUIRED_FIELDS,
+    build_natural_language_welding_agent_from_config,
     build_default_agent,
     build_welding_document_agent_from_config,
     build_welding_standard_agent_from_config,
@@ -38,6 +39,15 @@ class DirectFieldsRequest(BaseModel):
 
 class GenerateRequest(BaseModel):
     fields: dict[str, str] | None = None
+
+
+class NonprofessionalAnalyzeRequest(BaseModel):
+    description: str = Field(..., min_length=1)
+
+
+class NonprofessionalGenerateRequest(BaseModel):
+    description: str = Field(..., min_length=1)
+    fields_override: dict[str, str] = Field(default_factory=dict)
 
 
 def create_app() -> FastAPI:
@@ -143,6 +153,46 @@ def create_app() -> FastAPI:
         session["download_url"] = f"/api/sessions/{session_id}/download"
         return session_payload(session_id)
 
+    @app.post("/api/nonprofessional/analyze")
+    async def analyze_nonprofessional(request: NonprofessionalAnalyzeRequest) -> dict[str, Any]:
+        return await run_in_threadpool(analyze_natural_language_description, request.description)
+
+    @app.post("/api/nonprofessional/generate")
+    async def generate_nonprofessional(request: NonprofessionalGenerateRequest) -> dict[str, Any]:
+        analysis = await run_in_threadpool(analyze_natural_language_description, request.description)
+        fields = dict(analysis.get("fields", {}))
+        fields.update({key: value.strip() for key, value in request.fields_override.items() if value.strip()})
+        presence_result = inspect_required_field_presence(fields)
+        if not presence_result["complete"]:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "fields": fields,
+                    "complete": False,
+                    "missing_keys": presence_result["missing_keys"],
+                    "invalid_keys": [],
+                    "questions": presence_result["questions"],
+                },
+            )
+
+        session_id = uuid4().hex
+        state = create_initial_state()
+        state["fields"] = fields
+        state["complete"] = True
+        state["missing_keys"] = []
+        state["invalid_keys"] = []
+        state["questions"] = []
+        state["assistant_message"] = "已根据描述自动识别焊接字段，可以生成标准文档。"
+        document_path = await run_in_threadpool(build_document_from_fields, fields, state)
+        sessions[session_id] = {
+            "state": state,
+            "document_path": str(document_path),
+            "document_name": document_path.name,
+            "download_url": f"/api/sessions/{session_id}/download",
+            "analysis": analysis,
+        }
+        return {**session_payload(session_id), "analysis": analysis}
+
     @app.get("/api/sessions/{session_id}/download")
     def download_document(session_id: str) -> FileResponse:
         session = get_session(session_id)
@@ -175,6 +225,18 @@ def build_document_from_fields(fields: dict[str, Any], state: dict[str, Any]) ->
     document_config["output"]["dir"] = str(ROOT_DIR / document_config["output"]["dir"])
     document_agent = build_welding_document_agent_from_config(document_config)
     return document_agent.build_document(standard_result)
+
+
+def analyze_natural_language_description(description: str) -> dict[str, Any]:
+    config = load_yaml_config(ROOT_DIR / "configs" / "natural_language_agent_config.yaml")
+    agent = build_natural_language_welding_agent_from_config(config)
+    return agent.analyze(description)
+
+
+def inspect_required_field_presence(fields: dict[str, Any]) -> dict[str, Any]:
+    missing_keys = [field.key for field in REQUIRED_FIELDS if not str(fields.get(field.key, "")).strip()]
+    questions = [field.build_question() for field in REQUIRED_FIELDS if field.key in missing_keys]
+    return {"complete": not missing_keys, "missing_keys": missing_keys, "questions": questions}
 
 
 app = create_app()

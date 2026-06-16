@@ -21,11 +21,21 @@
           <p class="eyebrow">Pipeline Welding</p>
           <h1>管道焊接重问与标准文档生成</h1>
         </div>
-        <button class="secondary" :disabled="busy" @click="resetSession">新建会话</button>
+        <div class="topbar-actions">
+          <div class="mode-switch" aria-label="模式切换">
+            <button :class="{ active: mode === 'professional' }" :disabled="busy" @click="switchMode('professional')">
+              专业问答模式
+            </button>
+            <button :class="{ active: mode === 'nonprofessional' }" :disabled="busy" @click="switchMode('nonprofessional')">
+              非专业描述模式
+            </button>
+          </div>
+          <button class="secondary" :disabled="busy" @click="resetSession">新建会话</button>
+        </div>
       </header>
 
       <section class="content">
-        <div class="conversation">
+        <div v-if="mode === 'professional'" class="conversation">
           <div class="panel-head">
             <div>
               <h2>重问答交互</h2>
@@ -64,6 +74,40 @@
           </form>
         </div>
 
+        <div v-else class="conversation natural-panel">
+          <div class="panel-head">
+            <div>
+              <h2>描述你的焊接需求</h2>
+              <p>输入一段自然语言描述，系统会自动识别关键字段</p>
+            </div>
+            <span :class="['status', state?.complete ? 'complete' : 'pending']">
+              {{ state?.complete ? '字段完整' : '等待分析' }}
+            </span>
+          </div>
+
+          <div class="natural-body">
+            <textarea
+              v-model="naturalDescription"
+              rows="8"
+              placeholder="例如：我有两块20mm厚的20号钢板，需要帮我生成一个焊接工艺"
+              :disabled="busy || generating"
+            />
+            <div class="natural-actions">
+              <button class="secondary" :disabled="!canAnalyzeNatural" @click="analyzeNaturalDescription">
+                {{ busy ? '正在分析' : '分析描述' }}
+              </button>
+              <button class="primary" :disabled="!canGenerate" @click="generateDocument">
+                {{ generating ? '正在生成文档' : '生成标准文档' }}
+              </button>
+            </div>
+            <div v-if="naturalAnalyzed" class="analysis-result">
+              <h2>自动识别字段</h2>
+              <p v-if="state?.complete">字段已完整，可以生成文档。</p>
+              <p v-else>仍有字段需要修正或补充。</p>
+            </div>
+          </div>
+        </div>
+
         <aside class="sidebar">
           <section class="fields">
             <div class="panel-head compact">
@@ -76,13 +120,18 @@
             <label v-for="field in requiredFields" :key="field.key" class="field">
               <span>{{ field.label }}</span>
               <select
-                v-if="field.options.length && field.key !== 'welding_process'"
+                v-if="field.key === 'welding_process' || (mode === 'professional' && field.options.length)"
                 v-model="editableFields[field.key]"
                 :disabled="busy"
                 @change="syncFields"
               >
                 <option value="">未填写</option>
-                <option v-for="option in field.options" :key="option" :value="option">
+                <template v-if="field.key === 'welding_process'">
+                  <option v-for="option in weldingProcessOptions" :key="option" :value="option">
+                    {{ option }}
+                  </option>
+                </template>
+                <option v-for="option in field.options" v-else :key="option" :value="option">
                   {{ option }}
                 </option>
               </select>
@@ -165,6 +214,17 @@ type SessionPayload = {
   state: ReaskState
   download_url?: string
   document_name?: string
+  analysis?: NaturalAnalysisPayload
+}
+
+type NaturalAnalysisPayload = {
+  fields: Record<string, string>
+  complete: boolean
+  missing_keys: string[]
+  invalid_keys: string[]
+  questions: string[]
+  rag_evidence: unknown[]
+  network_evidence: unknown[]
 }
 
 type RequiredField = {
@@ -180,6 +240,9 @@ const sessionId = ref('')
 const state = ref<ReaskState | null>(null)
 const requiredFields = ref<RequiredField[]>([])
 const draft = ref('')
+const mode = ref<'professional' | 'nonprofessional'>('professional')
+const naturalDescription = ref('')
+const naturalAnalyzed = ref(false)
 const busy = ref(false)
 const generating = ref(false)
 const appLoading = ref(true)
@@ -190,10 +253,18 @@ const downloadUrl = ref('')
 const documentName = ref('')
 const messageListRef = ref<HTMLElement | null>(null)
 const editableFields = reactive<Record<string, string>>({})
+const weldingProcessOptions = ['SMAW', 'GTAW', 'GMAW', 'FCAW', 'SAW', 'GTAW+SMAW']
 
 const reachedLimit = computed(() => (state.value?.round_count ?? 0) >= 5 && !state.value?.complete)
 const canSend = computed(() => Boolean(draft.value.trim() && sessionId.value && !busy.value && !reachedLimit.value))
-const canGenerate = computed(() => Boolean(sessionId.value && !generating.value && Object.values(editableFields).some(Boolean)))
+const canAnalyzeNatural = computed(() => Boolean(naturalDescription.value.trim() && !busy.value && !generating.value))
+const canGenerate = computed(() => {
+  const hasFields = Object.values(editableFields).some(Boolean)
+  if (mode.value === 'nonprofessional') {
+    return Boolean(naturalDescription.value.trim() && !generating.value && hasFields)
+  }
+  return Boolean(sessionId.value && !generating.value && hasFields)
+})
 
 onMounted(async () => {
   startProgress('加载前端资源')
@@ -223,10 +294,17 @@ async function resetSession() {
     const payload = await api<SessionPayload>('/api/sessions', { method: 'POST' })
     applySession(payload)
     draft.value = ''
+    naturalAnalyzed.value = false
   } finally {
     busy.value = false
     if (!appLoading.value) stopProgress()
   }
+}
+
+function switchMode(nextMode: 'professional' | 'nonprofessional') {
+  mode.value = nextMode
+  downloadUrl.value = ''
+  documentName.value = ''
 }
 
 async function sendMessage() {
@@ -268,15 +346,60 @@ async function generateDocument() {
   startProgress('准备生成任务')
   rotateGenerationSteps()
   try {
-    const payload = await api<SessionPayload>(`/api/sessions/${sessionId.value}/generate`, {
-      method: 'POST',
-      body: JSON.stringify({ fields: editableFields })
-    })
+    const payload =
+      mode.value === 'nonprofessional'
+        ? await api<SessionPayload>('/api/nonprofessional/generate', {
+            method: 'POST',
+            body: JSON.stringify({
+              description: naturalDescription.value.trim(),
+              fields_override: editableFields
+            })
+          })
+        : await api<SessionPayload>(`/api/sessions/${sessionId.value}/generate`, {
+            method: 'POST',
+            body: JSON.stringify({ fields: editableFields })
+          })
     applySession(payload)
   } finally {
     generating.value = false
     stopProgress()
   }
+}
+
+async function analyzeNaturalDescription() {
+  if (!canAnalyzeNatural.value) return
+  busy.value = true
+  startProgress('分析描述')
+  try {
+    const result = await api<NaturalAnalysisPayload>('/api/nonprofessional/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ description: naturalDescription.value.trim() })
+    })
+    naturalAnalyzed.value = true
+    applyNaturalAnalysis(result)
+  } finally {
+    busy.value = false
+    stopProgress()
+  }
+}
+
+function applyNaturalAnalysis(result: NaturalAnalysisPayload) {
+  const fields = result.fields || {}
+  for (const field of requiredFields.value) {
+    editableFields[field.key] = fields[field.key] || editableFields[field.key] || ''
+  }
+  state.value = {
+    messages: [],
+    fields: { ...editableFields },
+    round_count: 0,
+    complete: result.complete,
+    missing_keys: result.missing_keys || [],
+    invalid_keys: result.invalid_keys || [],
+    questions: result.questions || [],
+    assistant_message: result.complete ? '字段已自动识别完整。' : '仍有字段需要补充或修正。'
+  }
+  downloadUrl.value = ''
+  documentName.value = ''
 }
 
 function applySession(payload: SessionPayload) {

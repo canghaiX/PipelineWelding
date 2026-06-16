@@ -1,0 +1,34 @@
+agent:
+  name: natural_language_welding_agent
+  role: 非专业焊接需求解析智能体
+  input_source: free_text_description
+  output_format: welding_reask_fields
+
+llm:
+  enabled: true
+  model_config_path: configs/model_config.yaml
+
+generation:
+  default_process_for_plate: SMAW
+
+rag_search:
+  enabled: true
+  index_dir: data/rag/faiss
+  embedding_url: http://127.0.0.1:8001/v1/embeddings
+  rerank_url: http://127.0.0.1:8002/rerank
+  embedding_model: bge-m3
+  rerank_model: bge-reranker-v2-m3
+  semantic_top_k: 10
+  keyword_top_k: 10
+  fusion_top_k: 10
+  final_top_k: 5
+  rrf_k: 60
+
+mcp_search:
+  enabled: true
+  transport: streamable_http
+  tool_name: tavily_search
+  command: ""
+  args: []
+  url: https://mcp.tavily.com/mcp/?tavilyApiKey=${TAVILY_API_KEY}
+  max_results: 5
