@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import random
 import re
 import sys
 import time
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +17,7 @@ SRC_DIR = ROOT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from pipeline_welding.rag.hybrid_retrieval import bm25_rank, load_chunks, tokenize_for_keyword_search
+from pipeline_welding.rag.hybrid_retrieval import load_chunks, tokenize_for_keyword_search
 
 
 DOMAIN_TERMS = (
@@ -130,6 +132,45 @@ EVAL_CASES: list[dict[str, Any]] = [
 ]
 
 
+class FastBm25Index:
+    def __init__(
+        self,
+        corpus_tokens: list[list[str]],
+        k1: float = 1.5,
+        b: float = 0.75,
+    ) -> None:
+        self.k1 = k1
+        self.b = b
+        self.doc_count = len(corpus_tokens)
+        self.doc_lens = [len(tokens) for tokens in corpus_tokens]
+        self.avg_doc_len = sum(self.doc_lens) / max(self.doc_count, 1)
+        self.postings: dict[str, list[tuple[int, int]]] = defaultdict(list)
+
+        for doc_index, tokens in enumerate(corpus_tokens):
+            frequencies = Counter(tokens)
+            for token, freq in frequencies.items():
+                self.postings[token].append((doc_index, freq))
+
+    def rank(self, query: str, top_k: int) -> list[tuple[int, float]]:
+        query_tokens = tokenize_for_keyword_search(query)
+        if not query_tokens:
+            return []
+
+        scores: dict[int, float] = defaultdict(float)
+        for token in query_tokens:
+            posting = self.postings.get(token)
+            if not posting:
+                continue
+            df = len(posting)
+            idf = math.log(1 + (self.doc_count - df + 0.5) / (df + 0.5))
+            for doc_index, freq in posting:
+                doc_len = self.doc_lens[doc_index]
+                denom = freq + self.k1 * (1 - self.b + self.b * doc_len / max(self.avg_doc_len, 1e-6))
+                scores[doc_index] += idf * (freq * (self.k1 + 1) / denom)
+
+        return sorted(scores.items(), key=lambda item: item[1], reverse=True)[:top_k]
+
+
 def chunk_text(chunk: Any) -> str:
     parts = [
         chunk.source_file,
@@ -150,12 +191,12 @@ def shorten_chunk(chunk_json: dict[str, Any], max_chars: int) -> dict[str, Any]:
 def retrieve(
     query: str,
     chunks: list[Any],
-    corpus_tokens: list[list[str]],
+    bm25_index: FastBm25Index,
     top_k: int,
     max_chunk_chars: int,
 ) -> dict[str, Any]:
     started = time.time()
-    ranked = bm25_rank(query, corpus_tokens, top_k=top_k)
+    ranked = bm25_index.rank(query, top_k=top_k)
     results = [
         {
             "score": score,
@@ -323,6 +364,7 @@ def main() -> None:
 
     chunks = load_chunks(args.chunks)
     corpus_tokens = [tokenize_for_keyword_search(chunk_text(chunk)) for chunk in chunks]
+    bm25_index = FastBm25Index(corpus_tokens)
     chunk_by_id = {chunk.chunk_id: chunk for chunk in chunks}
     rng = random.Random(args.seed)
     cases = EVAL_CASES if args.mode == "fixed" else build_synthetic_cases(chunks, args.num_samples, args.seed)
@@ -346,7 +388,7 @@ def main() -> None:
                 retrieval_payload = retrieve(
                     case["question"],
                     chunks,
-                    corpus_tokens,
+                    bm25_index,
                     top_k=args.top_k,
                     max_chunk_chars=args.max_chunk_chars,
                 )
