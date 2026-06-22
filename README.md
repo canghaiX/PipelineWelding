@@ -25,10 +25,16 @@ PipelineWelding/
 │       │   └── welding_reask_graph.py # LangGraph State 对话流程
 │       ├── documents/
 │       │   └── docx_reader.py         # DOCX 参考文档读取
+│       ├── evaluation/
+│       │   └── metrics.py             # RAG/Agent 评测指标
 │       ├── mcp/
 │       │   └── search_client.py       # MCP 搜索客户端适配器
 │       └── config/
 │           └── loader.py              # YAML 配置加载工具
+├── scripts/
+│   └── evaluate_predictions.py        # 离线评测脚本
+├── tests/
+│   └── test_evaluation_metrics.py     # 评测指标单元测试
 ├── data/
 │   └── MHPWPS-062.docx                # 本地 WPS 参考文件
 ├── demo_reask.py                      # 本地演示脚本
@@ -275,6 +281,104 @@ python .\demo_document_agent.py
 
 ```text
 result/
+```
+
+## 测评指标与离线评测
+
+项目提供了可复用的 RAG/Agent 评测指标，代码位于 [src/pipeline_welding/evaluation/metrics.py](src/pipeline_welding/evaluation/metrics.py)。当前支持：
+
+| 指标组 | 指标 |
+| --- | --- |
+| 答案正确性 | `em`、`f1`，支持 `answer_aliases` |
+| 检索质量 | `retrieval_hit`、`retrieval_recall`、`retrieval_precision`、`retrieval_f1`、`retrieval_mrr`、`retrieval_ndcg` |
+| Top-k 检索 | `retrieval_*@1`、`retrieval_*@3`、`retrieval_*@5` |
+| 证据支撑 | `groundedness`，用于快速估计答案 token 是否被检索证据覆盖 |
+| 过程效率 | `total_tool_calls`、`retrieval_rounds`、`retrieved_count`、`latency` |
+
+先确认评测模块可用：
+
+```powershell
+pytest -q tests/test_evaluation_metrics.py
+```
+
+离线评测脚本支持 JSON 或 JSONL 输入：
+
+```powershell
+python .\scripts\evaluate_predictions.py .\result\predictions.json
+```
+
+也可以指定输出文件：
+
+```powershell
+python .\scripts\evaluate_predictions.py .\result\predictions.json --output .\result\eval_my_model.json
+```
+
+输入记录建议包含以下字段：
+
+```json
+[
+  {
+    "prediction": "GTAW+SMAW",
+    "gold": "钨极氩弧焊打底+焊条电弧焊填充",
+    "answer_aliases": ["GTAW+SMAW"],
+    "gold_chunk_ids": ["gb50236-001"],
+    "retrieval_payload": {
+      "results": [
+        {
+          "score": 0.9,
+          "chunk": {
+            "chunk_id": "gb50236-001",
+            "source_file": "GB50236-2011.pdf",
+            "text": "GTAW+SMAW 可用于管道焊接工艺。"
+          }
+        }
+      ]
+    },
+    "latency": 0.2
+  }
+]
+```
+
+字段兼容规则：
+
+| 含义 | 支持字段名 |
+| --- | --- |
+| 预测答案 | `prediction` / `pred` / `answer` / `output` |
+| 标准答案 | `gold` / `gold_answer` / `reference` / `target` |
+| 检索结果 | `retrieval_payload` / `rag_payload` / `rag_result` / `retrieval` |
+| Gold 证据 chunk | `gold_chunk_ids` / `gold_chunks` / `evidence_chunk_ids` / `reference_chunk_ids` |
+
+评测输出默认保存到：
+
+```text
+result/eval_metrics.json
+```
+
+输出结构：
+
+```json
+{
+  "summary": {
+    "num_samples": 1,
+    "answer_metrics": {
+      "avg_em": 1.0,
+      "avg_f1": 1.0
+    },
+    "retrieval_metrics": {
+      "avg_retrieval_recall": 1.0,
+      "avg_retrieval_mrr": 1.0,
+      "avg_retrieval_ndcg": 1.0
+    },
+    "grounding_metrics": {
+      "avg_groundedness": 1.0
+    },
+    "process_metrics": {
+      "avg_retrieval_rounds": 1.0,
+      "avg_latency": 0.2
+    }
+  },
+  "results": []
+}
 ```
 
 ### 配置文件说明
